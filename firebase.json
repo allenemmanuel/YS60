@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "site": "ys60",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      ".git/**",
+      ".github/**",
+      ".firebase/**",
+      ".gitignore",
+      "**/.*",
+      "**/node_modules/**",
+      "*.md",
+      "*.code-workspace",
+      "SORT"
+    ]
+  }
+}
