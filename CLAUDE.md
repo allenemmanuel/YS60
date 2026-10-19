@@ -12,6 +12,7 @@ This file is the hand-off point between sessions and machines: read it first, an
   - Live site: **https://ys60.web.app**
 - **Never touch the old MAKYS project.** That means the `allenemmanuel/MAKYS` repo, `allenemmanuel.github.io/MAKYS`, and the `makysdraw-87237` Firebase project. This app was copied from MAKYS but is now fully separate. Don't push to MAKYS, link to it, or reuse its Firebase config.
 - Hosting is **Firebase Hosting**, not GitHub Pages. Pushing to GitHub does **not** deploy the site.
+- **Keep this file current without being asked.** Sessions can end without warning, so whenever a piece of work is finished (and always before a commit/push or deploy), update the **Progress log** (dated, with machine) and **Open items** below and include CLAUDE.md in the same commit. Don't wait for the user to request it.
 
 ---
 
@@ -79,11 +80,27 @@ firebase deploy --only hosting --project ys60-d283a
 - New Firebase project `ys60-d283a`: Realtime Database created and rules opened; all pages switched to the new config.
 - Moved hosting from GitHub Pages to Firebase Hosting at **https://ys60.web.app**. Removed the GitHub Pages workflow.
 - Added this `CLAUDE.md`.
+- Reviewed the whole app for robustness. Findings are listed under Open items → "Robustness fixes" (none fixed yet).
 
 ---
 
 ## Open items / next steps
 
+### Robustness fixes (from 2026-10-19 review, in priority order)
+- [ ] **Anyone can wipe the database.** Rules are open, and the public `TrackResult.html` exposes the DB URL, so any guest could delete or alter all tickets/winners. Fix: Firebase Auth for staff + rules (public read of results only).
+- [ ] **Lost scans / overwritten data.** Pages save whole lists back (read → modify → `set`), so the last writer wins. Two scanner PCs saving at once, or an open `Draw.html` (which writes back on every load/keystroke), can erase tickets. Fix: store each ticket as its own record (`push`) / use transactions.
+- [ ] **Drawn tickets can be scanned again and win twice.** `Draw.html` removes winners from `items`, and `Scanner01.html` only checks `items` for duplicates.
+- [ ] **"No. of Draw" isn't validated.** `-1` draws every ticket except one. `0` or blank records an empty draw, which shifts the winner→prize numbering on the display.
+- [ ] **Winner → prize mapping is fragile.** The prize number = position in the flattened draw history; `TrackResult` drops empty entries but `PrizeDisplay` doesn't, so they can disagree. No way to redraw a no-show without shifting everyone after.
+- [ ] **Draw button can be double-clicked** → two draws run at once.
+- [ ] **Scanner: second scan during processing is ignored** but left in the field, so the next scan appends to it (the digit-mixing problem).
+- [ ] **Shuffle is biased** (`sort(() => 0.5 - Math.random())`). Use Fisher–Yates with `crypto.getRandomValues`.
+- [ ] "Clear Drawn" empties `drawnItems` without restoring them, so those tickets are lost from the pool for good; the "Sanitize Data" button is always visible.
+- [ ] Ticket text is inserted as HTML in Draw's history list (`innerHTML`). A crafted QR code could inject script.
+- [ ] Inconsistent prize counts: PrizeConfig/PrizeDisplay = 300, displayPrize = 200 (hardcoded old MAKYS prize names), counter mapping covers 1–200 only.
+- [ ] No error/offline feedback: a draw is shown on screen even if saving to Firebase failed.
+
+### Other
 - [ ] Database is **empty**: set up prizes in `PrizeConfig.html` before the event.
 - [ ] Two titles still use old wording: `Draw.html` ("Annual Grand Dinner - Name/Number Drawing Program") and `Scanner01.html` ("QR Code Scanner Data Collector"). Rename for YS60?
 - [ ] Optional: real protection for the database (Firebase Auth for staff + tighter rules) instead of open rules.
