@@ -23,7 +23,7 @@ This file is the hand-off point between sessions and machines: read it first, an
 | Firebase project | `ys60-d283a` (console: https://console.firebase.google.com/project/ys60-d283a/overview) |
 | Hosting site | `ys60` → https://ys60.web.app (also `ys60.firebaseapp.com`) |
 | Realtime Database | https://ys60-d283a-default-rtdb.firebaseio.com (US region) |
-| DB rules | `database.rules.json` (deploy: `firebase deploy --only database --project ys60-d283a`). `drawResults/` stays open for the old pages until cutover. `events/` is staff-only, except `events/{id}/public/`, which anyone can read. Staff = signed in **and** `staff/{uid}: true`. **⚠ Not deployed yet as of 2026-10-20**; the live DB still has the old open rules. |
+| DB rules | `database.rules.json` (deploy: `firebase deploy --only database --project ys60-d283a`). `drawResults/` stays open for the old pages until cutover. `events/` is staff-only, except `events/{id}/public/`, which anyone can read. Staff = signed in **and** `staff/{uid}: true`. Deployed 2026-10-20. |
 | Staff accounts | Firebase Auth Email/Password. Add someone: create the user in the console, then `firebase database:set /staff/<uid> --data true --project ys60-d283a`. The rules allow nobody to write `staff/`, so this works only through the console/CLI. |
 | Hosting config | `firebase.json` (site `ys60`) + `.firebaserc` (project `ys60-d283a`) |
 
@@ -39,7 +39,7 @@ The app is being rebuilt as a **React app in `app/`**: Vite + TypeScript + Tailw
 - Guests check results via **name search** (`/check`) and a **public live winners board** (`/winners`).
 - **Draw stage:** build 2–3 concepts first and send the user a preview link to pick one before building it for real.
 - **Data:** one record per guest/winner under `events/ys60/`. Atomic multi-path draw claims, `winnerByGuest` to block double wins, explicit prize→winner mapping, void + redraw, Firebase Auth for staff, and `public/` as the only publicly readable node.
-- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules (code ✅, deploy + DB tests pending) → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
+- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules ✅ → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
 - Full approved plan: [`docs/revamp-plan.md`](docs/revamp-plan.md).
 - **Ask first:** before starting each revamp step (scaffolding, installing, editing app code), tell the user what's about to happen and wait for a go-ahead, even in auto mode.
 
@@ -184,7 +184,8 @@ firebase deploy --only hosting --project ys60-d283a
   - `database.rules.json` with a staff allowlist. It was added because anyone can create a Firebase Auth account using the public API key.
   - The data layer in `app/src/lib/`, the real `/login` page and `RequireStaff`.
   - Vitest tests. The 11 unit tests pass, and `npm run build` is clean.
-- **Blocked:** Claude's auto mode refused the production commands, `firebase database:set /staff/<uid>` and `firebase deploy --only database`. The user needs to run or approve them, then run `npm test` to exercise the DB tests.
+- Staff entry added and database rules deployed. All 25 tests pass. Anonymous reads: `drawResults` → 200, `events` → 401.
+- **Next:** Phase 4: Draw concepts.
 
 ---
 
