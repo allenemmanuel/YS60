@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource/barlow-condensed/600.css";
+@import "@fontsource/barlow-condensed/700.css";
+@import "@fontsource/barlow-condensed/800.css";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/manrope";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -121,4 +126,21 @@
   body {
     @apply bg-background text-foreground;
     }
+}
+/* YS60 stage tokens: Jubli Intan (diamond jubilee) + Sabah flag blues. */
+@theme {
+  --color-night: #08162b;
+  --color-night-deep: #040c19;
+  --color-zircon: #1d5ba8;
+  --color-ice: #a9d6f5;
+  --color-diamond: #f3f8fc;
+  --color-sabah-red: #c8102e;
+  --color-gold: #e0b45c;
+
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-serif: "Fraunces Variable", Georgia, serif;
+  --font-stage: "Manrope Variable", system-ui, sans-serif;
+
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
 }

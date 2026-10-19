@@ -39,7 +39,7 @@ The app is being rebuilt as a **React app in `app/`**: Vite + TypeScript + Tailw
 - Guests check results via **name search** (`/check`) and a **public live winners board** (`/winners`).
 - **Draw stage:** build 2–3 concepts first and send the user a preview link to pick one before building it for real.
 - **Data:** one record per guest/winner under `events/ys60/`. Atomic multi-path draw claims, `winnerByGuest` to block double wins, explicit prize→winner mapping, void + redraw, Firebase Auth for staff, and `public/` as the only publicly readable node.
-- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules ✅ → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
+- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules ✅ → 4 Draw concepts (5 built, waiting for the user to pick one) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
 - Full approved plan: [`docs/revamp-plan.md`](docs/revamp-plan.md).
 - **Ask first:** before starting each revamp step (scaffolding, installing, editing app code), tell the user what's about to happen and wait for a go-ahead, even in auto mode.
 
@@ -80,6 +80,22 @@ firebase hosting:channel:deploy preview --config firebase.preview.json --project
 ```
 
 Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by Firestore on a Node server; we use the Realtime Database in the browser) and `braces` (only inside the shadcn CLI, a dev tool). Don't run `npm audit fix --force`, because it downgrades Firebase to v9.
+
+**Draw stage concepts (Phase 4).** The user asked for **5**. They're at `/concepts` (public, made-up names, no database access) and `/concepts/1`…`/concepts/5`; `?w=0` forces the longest demo name.
+- **Design direction:** *Jubli Intan* (diamond jubilee) + Sabah flag blues instead of the usual black and gold. Tokens are in `app/src/index.css` (`--color-night`, `zircon`, `ice`, `diamond`, `sabah-red`, `gold`, plus `--font-display` Barlow Condensed, `--font-serif` Fraunces, `--font-stage` Manrope, `--ease-out-strong`). Fonts are bundled via `@fontsource` so the venue doesn't need internet for them. Stage copy is in Malay.
+- **Shared pieces (`app/src/stage/`):**
+  - `StageFrame`: fixed 1920×1080 canvas scaled to fit; clicker keys Space/→/Enter/PageDown; M mute; F fullscreen; 1–5 switch concept; auto-repeat ignored; cursor hides.
+  - `useDrawStage`: idle → spinning → landing → revealed. A press mid-spin lands early, a press while landing skips to the end. The winner is shown only after `pick()` resolves, which is the hook for `drawPrize()`.
+  - `FitName` / `fit.ts`: largest size that fits in 2 balanced lines.
+  - `sound.ts`: the old mp3s plus a synthesized flap tick; mute is remembered.
+  - Sounds live in `app/public/sounds/`.
+- **Concepts:**
+  1. Gulungan: 3D drum, ease-out matched to spin speed, paylines.
+  2. Intan: Anime.js `scrambleText` run on a plain object and copied into `textContent` (never `innerHTML`, since names are user data), plus a brilliant-cut SVG and a light sweep.
+  3. Buruj: canvas constellation that collapses and bursts.
+  4. Papan Kilat: split-flap board, 22×3, using WAAPI flaps.
+  5. Sorotan: a wall of names with a CSS-mask spotlight, the winner flying out to the centre, and a Kinabalu silhouette with a sunrise.
+- All five are checked with Playwright at 1920×1080 with and without `prefers-reduced-motion`, including the skip-mid-spin path, with no console errors.
 
 **Ideas for Phase 4 (from the user, 2026-10-20):**
 - [Anime.js v4](https://animejs.com/) (`npm i animejs`, MIT, modular ~24 KB): timelines, stagger, SVG line-draw/morph. A good fit for the scramble→gold reveal and a confetti/stagger finale. Wrap it in `createScope({ root })` inside a `useEffect` and revert it on unmount.
@@ -186,6 +202,8 @@ firebase deploy --only hosting --project ys60-d283a
   - Vitest tests. The 11 unit tests pass, and `npm run build` is clean.
 - Staff entry added and database rules deployed. All 25 tests pass. Anonymous reads: `drawResults` → 200, `events` → 401.
 - **Next:** Phase 4: Draw concepts.
+- **Phase 4:** built 5 Draw concepts at `/concepts` (see "Draw stage concepts"). Design tokens and fonts were added. The build, lint and the 11 unit tests pass.
+- **Next:** deploy the preview channel (`firebase hosting:channel:deploy preview --config firebase.preview.json --project ys60-d283a`), send the user the link, and the user picks one. Then build the chosen concept into `/stage` on top of `drawPrize()`, and delete the `/concepts` routes and the unused concepts.
 
 ---
 
