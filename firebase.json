@@ -11,6 +11,8 @@
       ".claude/**",
       "skills-lock.json",
       "docs/**",
+      "app/**",
+      "firebase.preview.json",
       ".gitignore",
       "**/.*",
       "**/node_modules/**",

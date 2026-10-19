@@ -1,0 +1,8 @@
+{
+  "hosting": {
+    "site": "ys60",
+    "public": "app/dist",
+    "ignore": ["**/.*", "**/node_modules/**"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  }
+}

@@ -38,8 +38,45 @@ The app is being rebuilt as a **React app in `app/`**: Vite + TypeScript + Tailw
 - Guests check results via **name search** (`/check`) and a **public live winners board** (`/winners`).
 - **Draw stage:** build 2–3 concepts first and send the user a preview link to pick one before building it for real.
 - **Data:** one record per guest/winner under `events/ys60/`. Atomic multi-path draw claims, `winnerByGuest` to block double wins, explicit prize→winner mapping, void + redraw, Firebase Auth for staff, and `public/` as the only publicly readable node.
-- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` → 3 data model + rules → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
+- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
 - Full approved plan: [`docs/revamp-plan.md`](docs/revamp-plan.md).
+- **Ask first:** before starting each revamp step (scaffolding, installing, editing app code), tell the user what's about to happen and wait for a go-ahead, even in auto mode.
+
+### The new app (`app/`)
+
+Stack versions: Vite 8, React 19, TypeScript 7, Tailwind 4 (Vite plugin), shadcn/ui (radix base, `new-york` style, neutral), Motion 14, react-router 8, Firebase 13 modular SDK.
+
+| Path | What |
+|---|---|
+| `app/src/lib/firebase.ts` | **The only Firebase config.** Exports `db`, `auth`, `EVENT_ID` (env `VITE_EVENT_ID`, default `ys60`), `eventPath()` / `eventRef()` → `events/{EVENT_ID}/…` |
+| `app/src/hooks/useConnected.ts` | `.info/connected` for the online/offline indicator |
+| `app/src/components/RequireStaff.tsx` | Staff route guard (**stub**: lets everyone in until Phase 3 adds Firebase Auth) |
+| `app/src/routes/index.tsx` | All routes; each page is a `Placeholder` for now |
+| `app/src/components/ui/` | shadcn components (add more with `npx shadcn@latest add <name>` inside `app/`) |
+
+```powershell
+cd app
+npm install          # first time on a machine
+npm run dev          # http://localhost:5173
+npm run build        # type-check + build to app/dist
+```
+
+**Preview deploys never touch live.** `firebase.preview.json` serves `app/dist` with SPA rewrites; the live `firebase.json` still serves the old root pages and ignores `app/**`:
+
+```powershell
+cd app; npm run build; cd ..
+firebase hosting:channel:deploy preview --config firebase.preview.json --project ys60-d283a
+```
+
+Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by Firestore on a Node server; we use the Realtime Database in the browser) and `braces` (only inside the shadcn CLI, a dev tool). Don't run `npm audit fix --force`, because it downgrades Firebase to v9.
+
+**Ideas for Phase 4 (from the user, 2026-10-20):**
+- [Anime.js v4](https://animejs.com/) (`npm i animejs`, MIT, modular ~24 KB): timelines, stagger, SVG line-draw/morph. A good fit for the scramble→gold reveal and a confetti/stagger finale. Wrap it in `createScope({ root })` inside a `useEffect` and revert it on unmount.
+- [FeralUI](https://feralui.dev/): small MIT React packages with playful physics, by mortspace. The most relevant ones:
+  - `feral-blinds`: spring carousels, including a "drum" mode that could drive the reels concept.
+  - `pullcord`: a real-rope pull cord that could start the draw on stage. It depends on `motion@^12` while we're on 14, so check the version clash first.
+  
+  Use these sparingly on the Draw stage and the public pages, not in the admin UI.
 
 ## Skills (in `.claude/skills/`, committed)
 
@@ -125,6 +162,12 @@ firebase deploy --only hosting --project ys60-d283a
 - Reviewed the whole app for robustness. Findings are listed under Open items → "Robustness fixes" (none fixed yet). They will be solved by the React rebuild, not patched.
 - Decided on the revamp (see "Revamp in progress"). Phase 0: installed Node 24 LTS + Python Playwright/Chromium. Phase 1: installed and reviewed the 8 skills into `.claude/skills/`. Excluded `.claude/**` and `skills-lock.json` from hosting.
 - **Next:** start a new chat (so the skills load), then Phase 2: scaffold `app/`.
+
+### 2026-10-20 (desktop PC)
+- **Phase 2 done:** scaffolded `app/` (see "The new app"). Every route has a placeholder page, there's a single `firebase.ts`, the `useConnected` hook and a stub staff guard. `npm run build` is clean, and Playwright confirmed all routes render with no console errors and connect to the database.
+- Added `firebase.preview.json` for preview-channel deploys. The live `firebase.json` now ignores `app/**`. No deploy has been done yet: the live site is unchanged, and the preview channel hasn't been deployed.
+- Looked into Anime.js and FeralUI at the user's request (notes under "Ideas for Phase 4").
+- **Next:** Phase 3: data model + database rules + Firebase Auth. Needs from the user: enable Email/Password sign-in in the Firebase console and create the staff account(s).
 
 ---
 
