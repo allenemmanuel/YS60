@@ -1,4 +1,7 @@
 {
+  "database": {
+    "rules": "database.rules.json"
+  },
   "hosting": {
     "site": "ys60",
     "public": ".",
@@ -13,6 +16,7 @@
       "docs/**",
       "app/**",
       "firebase.preview.json",
+      "database.rules.json",
       ".gitignore",
       "**/.*",
       "**/node_modules/**",

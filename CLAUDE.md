@@ -23,7 +23,8 @@ This file is the hand-off point between sessions and machines: read it first, an
 | Firebase project | `ys60-d283a` (console: https://console.firebase.google.com/project/ys60-d283a/overview) |
 | Hosting site | `ys60` → https://ys60.web.app (also `ys60.firebaseapp.com`) |
 | Realtime Database | https://ys60-d283a-default-rtdb.firebaseio.com (US region) |
-| DB rules | Open read/write (`.read: true`, `.write: true`). The pages use no Firebase Auth. |
+| DB rules | `database.rules.json` (deploy: `firebase deploy --only database --project ys60-d283a`). `drawResults/` stays open for the old pages until cutover. `events/` is staff-only, except `events/{id}/public/`, which anyone can read. Staff = signed in **and** `staff/{uid}: true`. **⚠ Not deployed yet as of 2026-10-20**; the live DB still has the old open rules. |
+| Staff accounts | Firebase Auth Email/Password. Add someone: create the user in the console, then `firebase database:set /staff/<uid> --data true --project ys60-d283a`. The rules allow nobody to write `staff/`, so this works only through the console/CLI. |
 | Hosting config | `firebase.json` (site `ys60`) + `.firebaserc` (project `ys60-d283a`) |
 
 Every page uses the Firebase JS SDK compat build via `<script>` tags (v9.21.0; `Scanner01.html` uses v8.10.0). Each page has its own copy of the `firebaseConfig` block, so a config change means updating all 7 copies.
@@ -38,7 +39,7 @@ The app is being rebuilt as a **React app in `app/`**: Vite + TypeScript + Tailw
 - Guests check results via **name search** (`/check`) and a **public live winners board** (`/winners`).
 - **Draw stage:** build 2–3 concepts first and send the user a preview link to pick one before building it for real.
 - **Data:** one record per guest/winner under `events/ys60/`. Atomic multi-path draw claims, `winnerByGuest` to block double wins, explicit prize→winner mapping, void + redraw, Firebase Auth for staff, and `public/` as the only publicly readable node.
-- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
+- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules (code ✅, deploy + DB tests pending) → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
 - Full approved plan: [`docs/revamp-plan.md`](docs/revamp-plan.md).
 - **Ask first:** before starting each revamp step (scaffolding, installing, editing app code), tell the user what's about to happen and wait for a go-ahead, even in auto mode.
 
@@ -50,8 +51,17 @@ Stack versions: Vite 8, React 19, TypeScript 7, Tailwind 4 (Vite plugin), shadcn
 |---|---|
 | `app/src/lib/firebase.ts` | **The only Firebase config.** Exports `db`, `auth`, `EVENT_ID` (env `VITE_EVENT_ID`, default `ys60`), `eventPath()` / `eventRef()` → `events/{EVENT_ID}/…` |
 | `app/src/hooks/useConnected.ts` | `.info/connected` for the online/offline indicator |
-| `app/src/components/RequireStaff.tsx` | Staff route guard (**stub**: lets everyone in until Phase 3 adds Firebase Auth) |
-| `app/src/routes/index.tsx` | All routes; each page is a `Placeholder` for now |
+| `app/src/lib/auth.tsx` | `AuthProvider` / `useAuth()` → `{ loading, user, isStaff }` (`isStaff` comes from `staff/{uid}`) |
+| `app/src/lib/session.ts` | `signIn`, `signOutStaff`, `authErrorMessage`, `actor()` (who did it, for `by` fields) |
+| `app/src/lib/draw.ts` | `drawPrize` (fair pick via `random.ts`, one atomic multi-path claim, retries if the rules reject it, resolves only after the server accepts, 15 s timeout), `voidWinner`, `releaseGuest`, `eligibleGuestIds` |
+| `app/src/lib/guests.ts` / `prizes.ts` | Parse pasted Excel/CSV, add as individual records (`push` keys, chunked `update`), `checkIn` (idempotent), delete with guards |
+| `app/src/lib/export.ts` | CSV (Excel-safe, formula-injection-safe) + full JSON backup |
+| `app/src/lib/log.ts`, `types.ts`, `text.ts`, `random.ts` | Audit log paths, data types, text cleanup, CSPRNG + Fisher–Yates |
+| `app/src/components/RequireStaff.tsx` | Staff route guard: signed out → `/login?next=…`; signed in but not staff → "Not a staff account" |
+| `app/src/routes/` | `index.tsx` (all routes), `Login.tsx`; the other pages are still `Placeholder`s |
+| `app/tests/` | Vitest: `unit.test.ts` (pure logic) and `db.test.ts` (rules + draw flows against **`events/ys60-test` only**; needs `app/.env.local` with `TEST_STAFF_EMAIL` / `TEST_STAFF_PASSWORD`, git-ignored) |
+
+Data lives under `events/{EVENT_ID}/`: `guests`, `prizes`, `winners/{prizeId}`, `winnerByGuest/{guestId}`, `settings`, `public/winners/{prizeId}` and `log` (append-only). A voided winner stays out of the draw unless released.
 | `app/src/components/ui/` | shadcn components (add more with `npx shadcn@latest add <name>` inside `app/`) |
 
 ```powershell
@@ -59,6 +69,7 @@ cd app
 npm install          # first time on a machine
 npm run dev          # http://localhost:5173
 npm run build        # type-check + build to app/dist
+npm test             # unit + DB tests (DB tests use events/ys60-test only)
 ```
 
 **Preview deploys never touch live.** `firebase.preview.json` serves `app/dist` with SPA rewrites; the live `firebase.json` still serves the old root pages and ignores `app/**`:
@@ -168,6 +179,12 @@ firebase deploy --only hosting --project ys60-d283a
 - Added `firebase.preview.json` for preview-channel deploys. The live `firebase.json` now ignores `app/**`. No deploy has been done yet: the live site is unchanged, and the preview channel hasn't been deployed.
 - Looked into Anime.js and FeralUI at the user's request (notes under "Ideas for Phase 4").
 - **Next:** Phase 3: data model + database rules + Firebase Auth. Needs from the user: enable Email/Password sign-in in the Firebase console and create the staff account(s).
+- User enabled Email/Password and created the first staff account (uid `jp651OVeBWWMaydzvj3rTlNqnGV2`). Decision: lock `events/` only, and keep `drawResults/` open so the old site works until cutover.
+- **Phase 3 code done:**
+  - `database.rules.json` with a staff allowlist. It was added because anyone can create a Firebase Auth account using the public API key.
+  - The data layer in `app/src/lib/`, the real `/login` page and `RequireStaff`.
+  - Vitest tests. The 11 unit tests pass, and `npm run build` is clean.
+- **Blocked:** Claude's auto mode refused the production commands, `firebase database:set /staff/<uid>` and `firebase deploy --only database`. The user needs to run or approve them, then run `npm test` to exercise the DB tests.
 
 ---
 

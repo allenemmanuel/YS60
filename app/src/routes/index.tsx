@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { Placeholder } from '@/components/Placeholder'
 import { RequireStaff } from '@/components/RequireStaff'
+import { Login } from '@/routes/Login'
 
 const staff = (title: string, phase: number) => (
   <RequireStaff>
@@ -10,7 +11,7 @@ const staff = (title: string, phase: number) => (
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/admin" replace /> },
-  { path: '/login', element: <Placeholder title="Staff sign-in" phase={3} /> },
+  { path: '/login', element: <Login /> },
   { path: '/admin', element: staff('Event control', 5) },
   { path: '/admin/guests', element: staff('Guests', 5) },
   { path: '/admin/prizes', element: staff('Prizes', 5) },

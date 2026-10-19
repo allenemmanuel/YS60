@@ -1,0 +1,105 @@
+{
+  "rules": {
+    "drawResults": {
+      ".read": true,
+      ".write": true
+    },
+
+    "staff": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+
+    "events": {
+      "$eventId": {
+        ".read": "auth != null && root.child('staff/' + auth.uid).val() === true",
+
+        "guests": {
+          "$guestId": {
+            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+            ".validate": "newData.hasChildren(['name', 'source', 'checkedIn', 'createdAt'])",
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+            "group": { ".validate": "newData.isString() && newData.val().length <= 120" },
+            "source": { ".validate": "newData.val() === 'list' || newData.val() === 'paste' || newData.val() === 'qr'" },
+            "checkedIn": { ".validate": "newData.isBoolean()" },
+            "checkedInAt": { ".validate": "newData.isNumber()" },
+            "createdAt": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "prizes": {
+          "$prizeId": {
+            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+            ".validate": "newData.hasChildren(['order', 'name'])",
+            "order": { ".validate": "newData.isNumber()" },
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+            "counter": { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "winners": {
+          "$prizeId": {
+            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true && (!data.exists() || !newData.exists() || data.child('status').val() === 'void' || newData.child('guestId').val() === data.child('guestId').val())",
+            ".validate": "newData.hasChildren(['guestId', 'name', 'drawnAt', 'by', 'status']) && newData.parent().parent().child('prizes/' + $prizeId).exists() && newData.parent().parent().child('guests/' + newData.child('guestId').val()).exists() && (newData.child('status').val() !== 'active' || newData.parent().parent().child('winnerByGuest/' + newData.child('guestId').val()).val() === $prizeId)",
+            "guestId": { ".validate": "newData.isString()" },
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+            "drawnAt": { ".validate": "newData.isNumber()" },
+            "by": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "status": { ".validate": "newData.val() === 'active' || newData.val() === 'void'" },
+            "voidedAt": { ".validate": "newData.isNumber()" },
+            "collected": { ".validate": "newData.isBoolean()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "winnerByGuest": {
+          "$guestId": {
+            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true && (!data.exists() || !newData.exists())",
+            ".validate": "newData.isString() && newData.parent().parent().child('prizes/' + newData.val()).exists()"
+          }
+        },
+
+        "settings": {
+          ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+          "entryMode": { ".validate": "newData.val() === 'all' || newData.val() === 'checkedIn'" },
+          "$other": { ".validate": false }
+        },
+
+        "public": {
+          ".read": true,
+          "winners": {
+            "$prizeId": {
+              ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+              ".validate": "newData.hasChildren(['name', 'prizeName', 'order', 'drawnAt'])",
+              "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+              "prizeName": { ".validate": "newData.isString() && newData.val().length <= 200" },
+              "counter": { ".validate": "newData.isString() && newData.val().length <= 60" },
+              "order": { ".validate": "newData.isNumber()" },
+              "drawnAt": { ".validate": "newData.isNumber()" },
+              "$other": { ".validate": false }
+            }
+          },
+          "$other": { ".validate": false }
+        },
+
+        "log": {
+          "$logId": {
+            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true && !data.exists()",
+            ".validate": "newData.hasChildren(['type', 'at', 'by'])",
+            "type": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "at": { ".validate": "newData.isNumber()" },
+            "by": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "prizeId": { ".validate": "newData.isString()" },
+            "guestId": { ".validate": "newData.isString()" },
+            "detail": { ".validate": "newData.isString() && newData.val().length <= 1000" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    }
+  }
+}
