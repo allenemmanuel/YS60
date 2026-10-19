@@ -30,6 +30,38 @@ Every page uses the Firebase JS SDK compat build via `<script>` tags (v9.21.0; `
 
 ---
 
+## Revamp in progress (decided 2026-10-19)
+
+The app is being rebuilt as a **React app in `app/`**: Vite + TypeScript + Tailwind + shadcn/ui + Motion + Firebase modular SDK. The old root HTML pages stay live until cutover. The event is ~3–4 weeks from 2026-10-19.
+
+- **Names are drawn** (not numbers). Entrants come from an optional source: guest list import, QR check-in, or pasted list.
+- Guests check results via **name search** (`/check`) and a **public live winners board** (`/winners`).
+- **Draw stage:** build 2–3 concepts first and send the user a preview link to pick one before building it for real.
+- **Data:** one record per guest/winner under `events/ys60/`. Atomic multi-path draw claims, `winnerByGuest` to block double wins, explicit prize→winner mapping, void + redraw, Firebase Auth for staff, and `public/` as the only publicly readable node.
+- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` → 3 data model + rules → 4 Draw concepts (preview) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
+- Full approved plan: [`docs/revamp-plan.md`](docs/revamp-plan.md).
+
+## Skills (in `.claude/skills/`, committed)
+
+Installed with `npx skills add … --agent claude-code --copy` (sources pinned in `skills-lock.json`); reviewed 2026-10-19.
+
+| Skill | Source | Use it for |
+|---|---|---|
+| `ui-ux-pro-max` | nextlevelbuilder/ui-ux-pro-max-skill | **Design system first**: palette, type, tokens, UX guidelines |
+| `design-taste-frontend` | Leonxlnx/taste-skill | Creative direction: Draw stage + public pages |
+| `frontend-design` | anthropics/skills | Creative direction (second opinion, anti-generic) |
+| `impeccable` | pbakaus/impeccable | Audit/polish pass before each release |
+| `animate`, `animation-vocabulary` | emilkowalski/skills | All motion: building animations, naming the effect wanted |
+| `shadcn` | shadcn-ui/ui (official) | Admin/staff UI components |
+| `webapp-testing` | anthropics/skills | Playwright (Python) tests |
+
+**Precedence when they disagree:** ui-ux-pro-max tokens → taste/frontend-design direction → Emil's skills for motion → impeccable has the final review.
+
+**Review notes:**
+- `impeccable` scripts download a helper binary from GitHub releases, but only run it after a sha256 check.
+- `design-taste-frontend/scripts/assets.mjs` fetches public-domain images from open APIs when asked.
+- `shadcn` auto-runs `npx shadcn@latest info --json` on load.
+
 ## Pages
 
 | File | Purpose | Staff login required |
@@ -58,6 +90,16 @@ git clone https://github.com/allenemmanuel/YS60.git
 cd YS60
 ```
 
+**One-time machine setup** (done on the desktop PC 2026-10-19; repeat on the laptop):
+
+```powershell
+winget install OpenJS.NodeJS.LTS          # Node 24 LTS (approve the admin prompt), then reopen the terminal
+py -m pip install --user playwright       # for the webapp-testing skill
+py -m playwright install chromium
+```
+
+The skills come with the repo, so no reinstall is needed. Open the folder in VS Code and start a new Claude chat so they load.
+
 **Deploy the site** (after committing your changes):
 
 ```powershell
@@ -80,7 +122,9 @@ firebase deploy --only hosting --project ys60-d283a
 - New Firebase project `ys60-d283a`: Realtime Database created and rules opened; all pages switched to the new config.
 - Moved hosting from GitHub Pages to Firebase Hosting at **https://ys60.web.app**. Removed the GitHub Pages workflow.
 - Added this `CLAUDE.md`.
-- Reviewed the whole app for robustness. Findings are listed under Open items → "Robustness fixes" (none fixed yet).
+- Reviewed the whole app for robustness. Findings are listed under Open items → "Robustness fixes" (none fixed yet). They will be solved by the React rebuild, not patched.
+- Decided on the revamp (see "Revamp in progress"). Phase 0: installed Node 24 LTS + Python Playwright/Chromium. Phase 1: installed and reviewed the 8 skills into `.claude/skills/`. Excluded `.claude/**` and `skills-lock.json` from hosting.
+- **Next:** start a new chat (so the skills load), then Phase 2: scaffold `app/`.
 
 ---
 
