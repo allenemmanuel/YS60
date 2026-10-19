@@ -1,2 +1,2 @@
-# makysdraw
-Name/number Drawing program for MAKYS (Malam Anugerah Kumpulan Yayasan Sabah)
+# YS60
+Name/number Drawing program for YS60

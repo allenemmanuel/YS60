@@ -1,4 +1,4 @@
-# MAKYS – Improvement ideas
+# YS60 – Improvement ideas
 
 Quick wins and next steps to make the app more robust and easier to maintain.
 
