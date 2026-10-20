@@ -4,7 +4,7 @@ import { shuffle } from '@/lib/random'
 import { FitName } from '@/stage/FitName'
 import { stageSound } from '@/stage/sound'
 import { STAGE_H, STAGE_W } from '@/stage/StageFrame'
-import { clamp01, easeInOutCubic, easeOutCubic, useFrame, useLatest, type ConceptProps } from '@/stage/useFrame'
+import { clamp01, easeInOutCubic, easeOutCubic, useFrame, useLatest, useStageCanvas, type ConceptProps } from '@/stage/useFrame'
 
 /** Concept: a glass lottery drum of tumbling balls; one pops out of the top and opens into the winner's name. */
 
@@ -50,13 +50,13 @@ function makeBalls(names: string[]): Ball[] {
 }
 
 export function BolaUndian({ stage, names }: ConceptProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { ref: canvasRef, getCtx } = useStageCanvas()
   const s = useLatest(stage)
   const namesRef = useLatest(names)
   const sim = useRef({ balls: null as Ball[] | null, phase: '', phaseAt: 0, stir: 0, drum: 0, winner: -1, fade: 0, burstAt: 0, wx: 0, wy: 0, wr: BALL_R })
 
   useFrame((now, dtRaw) => {
-    const ctx = canvasRef.current?.getContext('2d')
+    const ctx = getCtx()
     if (!ctx) return
     const st = s.current
     const m = sim.current
@@ -208,7 +208,11 @@ export function BolaUndian({ stage, names }: ConceptProps) {
     ctx.arc(CX, CY, R, 0, Math.PI * 2)
     ctx.fill()
 
-    for (let i = 0; i < balls.length; i++) if (i !== m.winner) drawBall(ctx, balls[i], BALL_R)
+    for (let i = 0; i < balls.length; i++) {
+      if (i === m.winner) continue
+      const b = balls[i]
+      ctx.drawImage(ballSprite(b), b.x - BALL_R, b.y - BALL_R)
+    }
 
     // Turning hoops of the drum, drawn over the balls.
     ctx.strokeStyle = 'rgba(169, 214, 245, 0.45)'
@@ -248,7 +252,7 @@ export function BolaUndian({ stage, names }: ConceptProps) {
 
   return (
     <div className="absolute inset-0">
-      <canvas ref={canvasRef} width={STAGE_W} height={STAGE_H} className="absolute inset-0" aria-hidden="true" />
+      <canvas ref={canvasRef} className="absolute inset-0 size-full" aria-hidden="true" />
       <AnimatePresence>
         {stage.phase === 'revealed' && stage.winner && (
           <motion.div
@@ -266,6 +270,22 @@ export function BolaUndian({ stage, names }: ConceptProps) {
       </AnimatePresence>
     </div>
   )
+}
+
+/** Each ball (colour + initials) is drawn once into a small canvas and then stamped every frame. */
+const sprites = new Map<string, HTMLCanvasElement>()
+void document.fonts.ready.then(() => sprites.clear())
+function ballSprite(b: Ball): HTMLCanvasElement {
+  const key = `${b.color}|${b.label}`
+  let c = sprites.get(key)
+  if (!c) {
+    c = document.createElement('canvas')
+    c.width = c.height = BALL_R * 2
+    const sctx = c.getContext('2d')!
+    drawBall(sctx, { ...b, x: BALL_R, y: BALL_R }, BALL_R)
+    sprites.set(key, c)
+  }
+  return c
 }
 
 function drawBall(ctx: CanvasRenderingContext2D, b: Ball, r: number) {

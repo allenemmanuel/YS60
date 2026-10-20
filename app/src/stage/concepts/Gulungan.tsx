@@ -96,7 +96,7 @@ export function Gulungan({ stage, names }: ConceptProps) {
       const y = RADIUS * Math.sin(theta)
       const z = RADIUS * (Math.cos(theta) - 1)
       face.style.transform = `translate3d(0, ${y}px, ${z}px) rotateX(${-theta}rad)`
-      const light = visible ? Math.cos(theta) ** 2 : 0
+      const light = visible ? Math.cos(theta) ** 3 : 0
       face.style.opacity = String(revealed ? (isWinnerRow ? 0 : light * 0.04) : light)
       face.style.color = Math.abs(theta) < STEP / 2 && st.phase !== 'spinning' ? 'var(--color-gold)' : ''
     }
@@ -110,7 +110,6 @@ export function Gulungan({ stage, names }: ConceptProps) {
           top: CENTER_Y - 400,
           height: 800,
           perspective: 1400,
-          maskImage: 'linear-gradient(transparent, #000 22%, #000 78%, transparent)',
         }}
       >
         {Array.from({ length: SLOTS }, (_, i) => (

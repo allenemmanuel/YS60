@@ -13,6 +13,7 @@ const CX = 960
 const CY = 1170
 const R = 800
 const HUB = 210
+const WHEEL_BOX = (R + 30) * 2
 const POINTER_ANGLE = -90 // straight up, in SVG degrees
 const TOP_SPEED = 260 // degrees per second
 
@@ -28,8 +29,8 @@ const labelSize = (name: string) => Math.min(34, Math.floor(560 / (name.length *
 export function Roda({ stage, names }: ConceptProps) {
   const [labels, setLabels] = useState(() => shuffle(names).slice(0, SEGMENTS))
   const [winnerSeg, setWinnerSeg] = useState(-1)
-  const wheelRef = useRef<SVGGElement>(null)
-  const pointerRef = useRef<SVGGElement>(null)
+  const wheelRef = useRef<HTMLDivElement>(null)
+  const pointerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
   const s = useLatest(stage)
   const sim = useRef({ phase: '', angle: 0, vel: 6, target: 0, from: 0, landAt: 0, landDur: 0, lastSeg: 0, winnerSeg: -1, settleAt: 0 })
@@ -83,7 +84,7 @@ export function Roda({ stage, names }: ConceptProps) {
       m.angle += m.vel * dt
     }
 
-    wheelRef.current?.setAttribute('transform', `translate(${CX} ${CY}) rotate(${m.angle})`)
+    if (wheelRef.current) wheelRef.current.style.transform = `rotate(${m.angle}deg)`
 
     // Tick and flick the pointer each time a peg passes it.
     const seg = Math.floor((m.angle - POINTER_ANGLE + SEG / 2) / SEG)
@@ -114,7 +115,14 @@ export function Roda({ stage, names }: ConceptProps) {
             </radialGradient>
           </defs>
           <rect x="0" y="300" width="1920" height="780" fill="url(#roda-glow)" />
-          <g ref={wheelRef} transform={`translate(${CX} ${CY})`}>
+        </svg>
+        {/* The wheel is drawn once and rotated as a whole by the compositor (CSS transform), not re-rendered per frame. */}
+        <div
+          ref={wheelRef}
+          className="absolute will-change-transform"
+          style={{ left: CX - WHEEL_BOX / 2, top: CY - WHEEL_BOX / 2, width: WHEEL_BOX, height: WHEEL_BOX }}
+        >
+          <svg width={WHEEL_BOX} height={WHEEL_BOX} viewBox={`${-WHEEL_BOX / 2} ${-WHEEL_BOX / 2} ${WHEEL_BOX} ${WHEEL_BOX}`} aria-hidden="true">
             <circle r={R + 18} fill="#040c19" stroke="#e0b45c" strokeWidth="6" />
             {wedges.map((d, i) => (
               <path
@@ -147,13 +155,17 @@ export function Roda({ stage, names }: ConceptProps) {
             <text textAnchor="middle" dominantBaseline="central" fill="#e0b45c" style={{ font: '800 150px var(--font-display)' }}>
               60
             </text>
-          </g>
-          <g transform={`translate(${CX} ${CY - R - 40})`}>
-            <g ref={pointerRef} style={{ transformOrigin: '0px -20px', transformBox: 'view-box' }}>
-              <path d="M -30 -40 L 30 -40 L 0 34 Z" fill="#e0b45c" stroke="#040c19" strokeWidth="4" strokeLinejoin="round" />
-            </g>
-          </g>
-        </svg>
+          </svg>
+        </div>
+        <div
+          ref={pointerRef}
+          className="absolute will-change-transform"
+          style={{ left: CX - 40, top: CY - R - 90, width: 80, height: 90, transformOrigin: '40px 10px' }}
+        >
+          <svg width="80" height="90" viewBox="-40 -50 80 90" aria-hidden="true">
+            <path d="M -30 -40 L 30 -40 L 0 34 Z" fill="#e0b45c" stroke="#040c19" strokeWidth="4" strokeLinejoin="round" />
+          </svg>
+        </div>
       </div>
 
       <AnimatePresence>

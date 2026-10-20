@@ -1,14 +1,15 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { FitName } from '@/stage/FitName'
 import { STAGE_H, STAGE_W } from '@/stage/StageFrame'
-import { clamp01, easeInOutCubic, easeOutCubic, useFrame, useLatest, type ConceptProps } from '@/stage/useFrame'
+import { clamp01, easeInOutCubic, easeOutCubic, useFrame, useLatest, useStageCanvas, type ConceptProps } from '@/stage/useFrame'
 
 /** Concept 3: every guest is a star; the sky swirls, collapses into one point and bursts into the winner. */
 
 const CX = STAGE_W / 2
 const CY = 600
 const MIN_STARS = 180
+const STAR_LEVELS = 4
 
 interface Star {
   name: string
@@ -45,7 +46,7 @@ function makeStars(names: string[]): Star[] {
 }
 
 export function Buruj({ stage, names }: ConceptProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { ref: canvasRef, getCtx } = useStageCanvas()
   const stars = useMemo(() => makeStars(names), [names])
   const s = useLatest(stage)
   const sim = useRef({
@@ -60,16 +61,8 @@ export function Buruj({ stage, names }: ConceptProps) {
     nextLabel: 0,
   })
 
-  useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d')
-    if (ctx) {
-      ctx.fillStyle = '#08162b'
-      ctx.fillRect(0, 0, STAGE_W, STAGE_H)
-    }
-  }, [])
-
   useFrame((now, dt) => {
-    const ctx = canvasRef.current?.getContext('2d')
+    const ctx = getCtx()
     if (!ctx) return
     const st = s.current
     const m = sim.current
@@ -158,15 +151,21 @@ export function Buruj({ stage, names }: ConceptProps) {
       ctx.stroke()
     }
 
+    // Stars, batched into a few brightness levels: one fill per level instead of one per star.
     ctx.globalCompositeOperation = 'lighter'
-    for (let i = 0; i < stars.length; i++) {
-      const st0 = stars[i]
-      const [x, y] = pos[i]
-      const twinkle = 0.55 + 0.45 * Math.sin(t * 2 + st0.tw)
-      const r = st0.r * (1 + m.contract * 0.6)
-      ctx.fillStyle = `rgba(243, 248, 252, ${0.35 + 0.6 * twinkle})`
+    const grow = 1 + m.contract * 0.6
+    for (let level = 0; level < STAR_LEVELS; level++) {
+      ctx.fillStyle = `rgba(243, 248, 252, ${0.4 + (0.55 * level) / (STAR_LEVELS - 1)})`
       ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
+      for (let i = 0; i < stars.length; i++) {
+        const st0 = stars[i]
+        const twinkle = 0.5 + 0.5 * Math.sin(t * 2 + st0.tw)
+        if (Math.min(STAR_LEVELS - 1, Math.floor(twinkle * STAR_LEVELS)) !== level) continue
+        const [x, y] = pos[i]
+        const r = st0.r * grow
+        ctx.moveTo(x + r, y)
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+      }
       ctx.fill()
     }
 
@@ -193,11 +192,12 @@ export function Buruj({ stage, names }: ConceptProps) {
 
     // Collapse glow and burst.
     if (m.contract > 0.02) {
-      const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, 60 + 220 * m.contract)
+      const gr = 60 + 220 * m.contract
+      const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, gr)
       g.addColorStop(0, `rgba(243, 248, 252, ${0.5 * m.contract})`)
       g.addColorStop(1, 'rgba(29, 91, 168, 0)')
       ctx.fillStyle = g
-      ctx.fillRect(0, 0, STAGE_W, STAGE_H)
+      ctx.fillRect(CX - gr, CY - gr, gr * 2, gr * 2)
     }
     if (m.burstAt && !reduced) {
       const k = (now - m.burstAt) / 900
@@ -208,8 +208,10 @@ export function Buruj({ stage, names }: ConceptProps) {
         ctx.beginPath()
         ctx.ellipse(CX, CY, radius, radius * 0.45, 0, 0, Math.PI * 2)
         ctx.stroke()
-        ctx.fillStyle = `rgba(243, 248, 252, ${0.55 * (1 - k) ** 2})`
-        ctx.fillRect(0, 0, STAGE_W, STAGE_H)
+        if (k < 0.5) {
+          ctx.fillStyle = `rgba(243, 248, 252, ${0.55 * (1 - 2 * k) ** 2})`
+          ctx.fillRect(0, 0, STAGE_W, STAGE_H)
+        }
       }
     }
     ctx.globalCompositeOperation = 'source-over'
@@ -217,7 +219,7 @@ export function Buruj({ stage, names }: ConceptProps) {
 
   return (
     <div className="absolute inset-0">
-      <canvas ref={canvasRef} width={STAGE_W} height={STAGE_H} className="absolute inset-0" aria-hidden="true" />
+      <canvas ref={canvasRef} className="absolute inset-0 size-full bg-night" aria-hidden="true" />
       <AnimatePresence>
         {stage.phase === 'revealed' && stage.winner && (
           <motion.div

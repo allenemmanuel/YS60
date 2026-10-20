@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { stageSound } from '@/stage/sound'
 import { STAGE_H, STAGE_W } from '@/stage/StageFrame'
-import { clamp01, easeInOutCubic, useFrame, useLatest, type ConceptProps } from '@/stage/useFrame'
+import { clamp01, easeInOutCubic, useFrame, useLatest, useStageCanvas, type ConceptProps } from '@/stage/useFrame'
 
 /** Concept: fireworks build up; one big rocket bursts and its sparks gather into the winner's name. */
 
@@ -9,7 +9,8 @@ const TEXT_Y = 600
 const TEXT_W = 1640
 const FONT = '"Barlow Condensed", sans-serif'
 const COLORS = ['#e0b45c', '#a9d6f5', '#f3f8fc', '#c8102e', '#5aa0e6']
-const MAX_SPARKS = 2600
+const MAX_SPARKS = 1600
+const ALPHA_LEVELS = 4
 
 interface Spark {
   x: number
@@ -88,22 +89,39 @@ function drawText(ctx: CanvasRenderingContext2D, layout: TextLayout) {
 
 /** Points inside the rendered name, used as targets for the sparks. */
 function samplePoints(layout: TextLayout): [number, number][] {
+  // Half resolution is plenty for spark targets and four times cheaper to read back.
+  const W = STAGE_W / 2
+  const H = STAGE_H / 2
   const off = document.createElement('canvas')
-  off.width = STAGE_W
-  off.height = STAGE_H
-  const octx = off.getContext('2d')!
+  off.width = W
+  off.height = H
+  const octx = off.getContext('2d', { willReadFrequently: true })!
+  octx.scale(0.5, 0.5)
   octx.fillStyle = '#fff'
   drawText(octx, layout)
-  const data = octx.getImageData(0, 0, STAGE_W, STAGE_H).data
-  for (let step = 5; ; step++) {
+  const data = octx.getImageData(0, 0, W, H).data
+  for (let step = 3; ; step++) {
     const pts: [number, number][] = []
-    for (let y = 0; y < STAGE_H; y += step) for (let x = 0; x < STAGE_W; x += step) if (data[(y * STAGE_W + x) * 4 + 3] > 128) pts.push([x, y])
-    if (pts.length <= MAX_SPARKS || step > 14) return pts
+    for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) if (data[(y * W + x) * 4 + 3] > 128) pts.push([x * 2, y * 2])
+    if (pts.length <= MAX_SPARKS || step > 8) return pts
   }
 }
 
+/** The glowing name, drawn once (shadowBlur is too expensive to repeat every frame). */
+function renderName(layout: TextLayout): HTMLCanvasElement {
+  const c = document.createElement('canvas')
+  c.width = STAGE_W
+  c.height = STAGE_H
+  const cctx = c.getContext('2d')!
+  cctx.fillStyle = '#e0b45c'
+  cctx.shadowColor = 'rgba(224, 180, 92, 0.6)'
+  cctx.shadowBlur = 30
+  drawText(cctx, layout)
+  return c
+}
+
 export function BungaApi({ stage }: ConceptProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { ref: canvasRef, getCtx } = useStageCanvas()
   const s = useLatest(stage)
   const sim = useRef({
     phase: '',
@@ -111,7 +129,7 @@ export function BungaApi({ stage }: ConceptProps) {
     sparks: [] as Spark[],
     rockets: [] as Rocket[],
     nextLaunch: 0,
-    finale: null as null | { layout: TextLayout; burstAt: number; launched: boolean },
+    finale: null as null | { layout: TextLayout; points: [number, number][]; image: HTMLCanvasElement; burstAt: number; launched: boolean },
     textAlpha: 0,
   })
 
@@ -135,7 +153,7 @@ export function BungaApi({ stage }: ConceptProps) {
   }
 
   useFrame((now, dt) => {
-    const ctx = canvasRef.current?.getContext('2d')
+    const ctx = getCtx()
     if (!ctx) return
     const st = s.current
     const m = sim.current
@@ -145,7 +163,9 @@ export function BungaApi({ stage }: ConceptProps) {
       m.phase = st.phase
       m.phaseAt = now
       if (st.phase === 'landing' && st.winner) {
-        m.finale = { layout: layoutText(ctx, st.winner), burstAt: 0, launched: false }
+        // Prepare the name's spark targets and glow image now, while the rocket climbs, not at the burst.
+        const layout = layoutText(ctx, st.winner)
+        m.finale = { layout, points: samplePoints(layout), image: renderName(layout), burstAt: 0, launched: false }
       }
       if (st.phase === 'idle') {
         m.finale = null
@@ -191,8 +211,7 @@ export function BungaApi({ stage }: ConceptProps) {
       if (r.big && f) {
         f.burstAt = now
         stageSound.boom(0.9)
-        const pts = samplePoints(f.layout)
-        for (const [tx, ty] of pts) {
+        for (const [tx, ty] of f.points) {
           const a = Math.random() * Math.PI * 2
           const v = 300 + Math.random() * 900
           m.sparks.push({ x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0, max: 99, color: Math.random() < 0.75 ? '#e0b45c' : '#f3f8fc', tx, ty, ox: r.x, oy: r.y })
@@ -218,6 +237,14 @@ export function BungaApi({ stage }: ConceptProps) {
     ctx.globalCompositeOperation = 'lighter'
     ctx.lineCap = 'round'
 
+    // Sparks are batched by colour and brightness: a few strokes per frame instead of one per spark.
+    const streaks = new Map<string, Path2D>()
+    const dots = new Map<string, Path2D>()
+    const bucket = (map: Map<string, Path2D>, key: string) => {
+      let path = map.get(key)
+      if (!path) map.set(key, (path = new Path2D()))
+      return path
+    }
     const alive: Spark[] = []
     for (const p of m.sparks) {
       p.life += dt
@@ -240,32 +267,38 @@ export function BungaApi({ stage }: ConceptProps) {
       }
       alive.push(p)
       const a = p.tx !== undefined ? 0.9 * (1 - m.textAlpha * 0.7) : 1 - p.life / p.max
-      ctx.globalAlpha = Math.max(0, a)
+      const level = Math.max(0, Math.min(ALPHA_LEVELS - 1, Math.round(a * (ALPHA_LEVELS - 1))))
+      const key = `${p.color}|${level}`
       if (p.tx !== undefined && gather > 0.6) {
-        ctx.fillStyle = p.color
-        ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3)
+        bucket(dots, key).rect(p.x - 1.5, p.y - 1.5, 3, 3)
       } else {
         // Short streak along the direction of travel stands in for a motion trail.
-        ctx.strokeStyle = p.color
-        ctx.lineWidth = 2.5
-        ctx.beginPath()
-        ctx.moveTo(p.x - p.vx * 0.04, p.y - p.vy * 0.04)
-        ctx.lineTo(p.x, p.y)
-        ctx.stroke()
+        const path = bucket(streaks, key)
+        path.moveTo(p.x - p.vx * 0.04, p.y - p.vy * 0.04)
+        path.lineTo(p.x, p.y)
       }
     }
     m.sparks = alive
+    ctx.lineWidth = 2.5
+    for (const [key, path] of streaks) {
+      const [color, level] = key.split('|')
+      ctx.globalAlpha = Number(level) / (ALPHA_LEVELS - 1) || 0.12
+      ctx.strokeStyle = color
+      ctx.stroke(path)
+    }
+    for (const [key, path] of dots) {
+      const [color, level] = key.split('|')
+      ctx.globalAlpha = Number(level) / (ALPHA_LEVELS - 1) || 0.12
+      ctx.fillStyle = color
+      ctx.fill(path)
+    }
     ctx.globalAlpha = 1
 
     // Crisp name once the sparks have settled.
     if (f && m.textAlpha > 0) {
       ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = m.textAlpha
-      ctx.fillStyle = '#e0b45c'
-      ctx.shadowColor = 'rgba(224, 180, 92, 0.6)'
-      ctx.shadowBlur = 30
-      drawText(ctx, f.layout)
-      ctx.shadowBlur = 0
+      ctx.drawImage(f.image, 0, 0, STAGE_W, STAGE_H)
       ctx.globalAlpha = 1
     }
   })
@@ -273,7 +306,7 @@ export function BungaApi({ stage }: ConceptProps) {
   return (
     <div className="absolute inset-0">
       <div className="absolute inset-0" style={{ background: 'linear-gradient(#040c19, #08162b 70%, #0d2244)' }} />
-      <canvas ref={canvasRef} width={STAGE_W} height={STAGE_H} className="absolute inset-0" aria-hidden="true" />
+      <canvas ref={canvasRef} className="absolute inset-0 size-full" aria-hidden="true" />
       <p className="sr-only" aria-live="polite">
         {stage.phase === 'revealed' ? stage.winner : ''}
       </p>

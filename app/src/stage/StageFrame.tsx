@@ -91,10 +91,11 @@ export function StageFrame({ stage, prizeName, prizeCounter, prizeTotal, concept
         : 'Mencabut…'
 
   return (
-    <div ref={rootRef} className="fixed inset-0 grid place-items-center overflow-hidden bg-night-deep">
+    <div ref={rootRef} className="fixed inset-0 overflow-hidden bg-night-deep">
+      {/* Anchor the fixed 1920×1080 stage at the viewport centre, then scale it to fit (letterboxed). */}
       <div
-        className={cn('relative shrink-0 overflow-hidden bg-night font-stage text-diamond', className)}
-        style={{ width: STAGE_W, height: STAGE_H, transform: `scale(${scale})` }}
+        className={cn('absolute top-1/2 left-1/2 overflow-hidden bg-night font-stage text-diamond', className)}
+        style={{ width: STAGE_W, height: STAGE_H, transform: `translate(-50%, -50%) scale(${scale})` }}
       >
         {background}
         {children}

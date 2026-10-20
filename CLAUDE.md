@@ -84,7 +84,8 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
 **Draw stage concepts (Phase 4).** Round 1 had 5 concepts. The user **discarded Intan (scramble), Papan Kilat (split-flap) and Sorotan (spotlight)**, kept Gulungan and Buruj, and asked for 5 more. They prefer physical, cinematic motion over text effects. The concepts are at `/concepts` (public, made-up names, no database access) and `/concepts/1`…`/concepts/7`; `?w=0` forces the longest demo name.
 - **Design direction:** *Jubli Intan* (diamond jubilee) + Sabah flag blues instead of the usual black and gold. Tokens are in `app/src/index.css` (`--color-night`, `zircon`, `ice`, `diamond`, `sabah-red`, `gold`, plus `--font-display` Barlow Condensed, `--font-serif` Fraunces, `--font-stage` Manrope, `--ease-out-strong`). Fonts are bundled via `@fontsource` so the venue doesn't need internet for them. Stage copy is in Malay.
 - **Shared pieces (`app/src/stage/`):**
-  - `StageFrame`: fixed 1920×1080 canvas scaled to fit; clicker keys Space/→/Enter/PageDown; M mute; F fullscreen; 1–5 switch concept; auto-repeat ignored; cursor hides.
+  - `StageFrame`: fixed 1920×1080 stage, centred with `left/top: 50%` + `translate(-50%, -50%) scale(s)` so it letterboxes into any window (the original grid centring cut off the right and bottom on smaller screens). Clicker keys Space/→/Enter/PageDown; M mute; F fullscreen; 1–7 switch concept; auto-repeat ignored; cursor hides.
+  - `useStageCanvas()` (in `useFrame.ts`): canvases are backed by only the pixels on screen (≤1920×1080), and `getCtx()` returns a context scaled to stage units.
   - `useDrawStage`: idle → spinning → landing → revealed. A press mid-spin lands early, a press while landing skips to the end. The winner is shown only after `pick()` resolves, which is the hook for `drawPrize()`.
   - `FitName` / `fit.ts`: largest size that fits in 2 balanced lines.
   - `sound.ts`: the old mp3s plus a synthesized flap tick; mute is remembered.
@@ -99,6 +100,12 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
   7. Kad: Anime.js timelines. Invitation cards fan, shuffle, gather, and the top card grows and flips (CSS `.kad-*` in `stage.css`).
 - All seven are checked with Playwright at 1920×1080 with and without `prefers-reduced-motion`, including the skip-mid-spin path, with no console errors.
 - Gotcha: Vite's watcher on Windows sometimes misses a file rewritten from the shell (it served an empty `stage.css`). `touch` the file if styles look missing.
+- **Performance rules (from the 2026-10-20 lag fix):** per frame, change only `transform`/`opacity` on DOM, or draw on a canvas.
+  - Batch canvas drawing into a few paths per colour/alpha level.
+  - Never use `shadowBlur`, gradients or text rendering per item per frame. Pre-render to an offscreen canvas or sprite instead.
+  - Never rotate SVG via its `transform` attribute; rotate a wrapping div with CSS instead.
+  - Keep many moving elements small; swap in one full-size element only for the hero moment, as Kad does.
+  - Measure with the scratchpad scripts (`perf.py` for fps under CPU throttling, `cost.py` for CDP main-thread breakdown) against `vite preview`, not the dev server.
 
 **Ideas for Phase 4 (from the user, 2026-10-20):**
 - [Anime.js v4](https://animejs.com/) (`npm i animejs`, MIT, modular ~24 KB): timelines, stagger, SVG line-draw/morph. A good fit for the scramble→gold reveal and a confetti/stagger finale. Wrap it in `createScope({ root })` inside a `useEffect` and revert it on unmount.
@@ -208,6 +215,17 @@ firebase deploy --only hosting --project ys60-d283a
 - **Phase 4:** built 5 Draw concepts at `/concepts` (see "Draw stage concepts"). Design tokens and fonts were added. The build, lint and the 11 unit tests pass.
 - Preview deployed: https://ys60--preview-sromi7cw.web.app/concepts (expires 2026-11-03). User feedback: discard 2, 4 and 5 and show 5 more.
 - **Round 2:** removed Intan, Papan Kilat and Sorotan; added Bola Undian, Roda, Terowong, Bunga Api and Kad (7 concepts total). Redeployed to the same preview channel.
+- User reported the concepts were laggy and had to zoom out to see them.
+  - **Fit fix:** the stage was anchored off-centre, so on a 1366×768 window it was shifted 277 px right and 156 px down and cut off. It now letterboxes correctly at 1366×768, 1536×864, 1280×800, phone and 1920×1080.
+  - **Perf fixes:** batched canvas drawing (Buruj stars, Terowong streaks, Bunga Api sparks); ball sprites (Bola Undian); a pre-rendered glowing name and half-resolution point sampling done before the burst (Bunga Api); compositor rotation of the wheel (Roda); small cards plus one hero card (Kad); no mask (Gulungan); and screen-sized canvas backing.
+  - Main-thread busy time over one draw, before → after:
+    - Buruj 51 → 11%
+    - Bola Undian 54 → 15%
+    - Terowong 32 → 11%
+    - Bunga Api 50 → 18%
+    - Roda layouts 510 → 19
+    - Kad at 4× CPU slowdown: 26 → 60 fps
+  - Redeployed the preview.
 - **Next:** the user picks a concept. Then build it into `/stage` on top of `drawPrize()`, and delete the `/concepts` routes and the unused concepts.
 
 ---
