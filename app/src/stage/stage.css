@@ -1,175 +1,28 @@
-/* Concept 2: Intan */
-.intan-facets {
-  color: var(--color-ice);
-  opacity: 0.1;
-  transition:
-    opacity 0.8s var(--ease-out-strong),
-    transform 0.8s var(--ease-out-strong);
-}
-.intan[data-phase='spinning'] .intan-facets,
-.intan[data-phase='landing'] .intan-facets {
-  opacity: 0.18;
-}
-.intan[data-phase='revealed'] .intan-facets {
-  opacity: 0.34;
-  color: var(--color-diamond);
-}
-.intan-facets-spin {
-  transform-origin: 0 0;
-  animation: intan-spin 180s linear infinite;
-}
-@keyframes intan-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.intan-name {
-  color: var(--color-ice);
-  opacity: 0.55;
-  transition:
-    opacity 0.5s var(--ease-out-strong),
-    color 0.5s var(--ease-out-strong);
-}
-.intan-name[data-state='landing'],
-.intan-name[data-state='revealed'] {
-  opacity: 1;
-  color: var(--color-diamond);
-}
-.intan-sweep {
-  color: transparent;
-  background-image: linear-gradient(100deg, transparent 40%, rgba(255, 255, 255, 0.95) 50%, transparent 60%);
-  background-size: 300% 100%;
-  background-repeat: no-repeat;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: intan-sweep 1.5s var(--ease-in-out-strong) 0.2s both;
-}
-@keyframes intan-sweep {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
-  }
-}
-.intan-glint {
-  margin: -20px 0 0 -20px;
-  background: var(--color-diamond);
-  clip-path: polygon(50% 0, 57% 43%, 100% 50%, 57% 57%, 50% 100%, 43% 57%, 0 50%, 43% 43%);
-  transform: rotate(calc(var(--i) * 72deg - 54deg)) translateX(560px);
-  animation: intan-glint 1.4s var(--ease-out-strong) calc(0.5s + var(--i) * 110ms) both;
-}
-@keyframes intan-glint {
-  0% {
-    opacity: 0;
-    scale: 0.5;
-  }
-  30% {
-    opacity: 1;
-    scale: 1.2;
-  }
-  100% {
-    opacity: 0;
-    scale: 0.8;
-  }
-}
+/* Stage concept styles. */
 
-/* Concept 4: Papan Kilat (split-flap) */
-.flap {
-  position: relative;
-  border-radius: 7px;
-  color: var(--color-diamond);
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 86px;
-  perspective: 300px;
-  transition: color 0.4s var(--ease-out-strong);
-}
-.flap > div {
+/* Kad: invitation cards */
+.kad-face {
   position: absolute;
-  left: 0;
-  right: 0;
-  height: 50%;
-  overflow: hidden;
-  background: linear-gradient(#14294a, #0f2140);
+  inset: 0;
+  border-radius: 44px;
   backface-visibility: hidden;
-}
-.flap > div > span {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 200%;
   display: flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
+  text-align: center;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.45);
 }
-.flap-top,
-.flap-leaf-top {
-  top: 0;
-  border-radius: 7px 7px 0 0;
-  transform-origin: 50% 100%;
+.kad-back {
+  gap: 48px;
+  background: radial-gradient(circle at 50% 35%, #1d4a85, #0b1f3d 65%);
+  border: 16px solid var(--color-gold);
+  color: var(--color-gold);
 }
-.flap-bottom,
-.flap-leaf-bottom {
-  bottom: 0;
-  border-radius: 0 0 7px 7px;
-  transform-origin: 50% 0;
-  background: linear-gradient(#0d1d39, #0a1830) !important;
-}
-.flap-bottom > span,
-.flap-leaf-bottom > span {
-  top: -100%;
-}
-.flap-top > span,
-.flap-leaf-top > span {
-  top: 0;
-}
-.flap-leaf-top,
-.flap-leaf-bottom {
-  visibility: hidden;
-  z-index: 1;
-}
-/* The hinge line across the middle of every flap. */
-.flap::after {
-  content: '';
-  position: absolute;
-  inset: calc(50% - 1px) 0 auto;
-  height: 2px;
-  background: #040c19;
-  z-index: 2;
-}
-
-/* Concept 5: Sorotan (spotlight) */
-.sorotan-dim {
-  opacity: 0.16;
-  transition: opacity 0.8s var(--ease-out-strong);
-}
-.sorotan[data-phase='revealed'] .sorotan-dim {
-  opacity: 0.035;
-}
-.sorotan-lit {
-  transition: opacity 0.5s var(--ease-out-strong);
-}
-.sorotan[data-phase='revealed'] .sorotan-lit {
-  opacity: 0;
-}
-.sorotan-sunrise {
-  opacity: 0;
-  transition: opacity 1.6s var(--ease-out-strong);
-}
-.sorotan[data-phase='revealed'] .sorotan-sunrise {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .intan-facets-spin,
-  .intan-sweep,
-  .intan-glint {
-    animation: none;
-  }
-  .intan-sweep,
-  .intan-glint {
-    display: none;
-  }
+.kad-front {
+  flex-direction: column;
+  gap: 18px;
+  padding: 40px 90px;
+  background: var(--color-diamond);
+  border: 16px solid var(--color-gold);
+  transform: rotateY(180deg);
 }
