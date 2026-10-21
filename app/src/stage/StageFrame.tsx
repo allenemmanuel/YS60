@@ -15,7 +15,7 @@ interface StageFrameProps {
   prizeName: string
   prizeCounter: string
   prizeTotal: number
-  /** Concept switcher for the preview build (keys 1–5). */
+  /** Concept switcher for the preview build (number keys). */
   concept?: { current: number; count: number; go: (n: number) => void }
   background?: ReactNode
   className?: string
@@ -83,12 +83,12 @@ export function StageFrame({ stage, prizeName, prizeCounter, prizeTotal, concept
 
   const hint =
     stage.phase === 'idle'
-      ? 'Tekan untuk mencabut'
+      ? 'Press to draw'
       : stage.phase === 'revealed'
         ? stage.prizeIndex < prizeTotal - 1
-          ? 'Tekan untuk hadiah seterusnya'
-          : 'Cabutan terakhir'
-        : 'Mencabut…'
+          ? 'Press for the next prize'
+          : 'Final draw complete'
+        : 'Drawing…'
 
   return (
     <div ref={rootRef} className="fixed inset-0 overflow-hidden bg-night-deep">
@@ -107,7 +107,7 @@ export function StageFrame({ stage, prizeName, prizeCounter, prizeTotal, concept
             <span className="text-diamond/90">Yayasan Sabah</span>
           </p>
           <p className="tabular-nums">
-            Hadiah {stage.prizeIndex + 1} daripada {prizeTotal}
+            Prize {stage.prizeIndex + 1} of {prizeTotal}
           </p>
         </header>
 
@@ -135,7 +135,7 @@ export function StageFrame({ stage, prizeName, prizeCounter, prizeTotal, concept
               animate={{ opacity: 1, transition: { delay: 0.9, duration: 0.4 } }}
               exit={{ opacity: 0, transition: { duration: 0.15 } }}
             >
-              Sila tuntut hadiah di {prizeCounter}
+              Please collect your prize at {prizeCounter}
             </motion.p>
           )}
         </AnimatePresence>
@@ -151,10 +151,10 @@ export function StageFrame({ stage, prizeName, prizeCounter, prizeTotal, concept
           <div className="flex items-center gap-6">
             {concept && (
               <p className="tabular-nums">
-                Konsep {concept.current} / {concept.count}
+                Concept {concept.current} / {concept.count}
               </p>
             )}
-            {muted ? <VolumeX aria-label="Bunyi dimatikan (M)" className="size-6" /> : <Volume2 aria-label="Bunyi hidup (M)" className="size-6" />}
+            {muted ? <VolumeX aria-label="Sound off (M)" className="size-6" /> : <Volume2 aria-label="Sound on (M)" className="size-6" />}
           </div>
         </footer>
       </div>

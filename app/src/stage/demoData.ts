@@ -79,12 +79,12 @@ export interface DemoPrize {
 
 /** Smallest first, grand prize last, as on the night. */
 export const DEMO_PRIZES: DemoPrize[] = [
-  { name: 'Baucar Makan Malam untuk Dua', counter: 'Kaunter A' },
-  { name: 'Set Periuk Tekanan Elektrik', counter: 'Kaunter A' },
-  { name: 'Basikal Lipat', counter: 'Kaunter B' },
-  { name: 'Percutian Dua Malam di Kundasang', counter: 'Kaunter B' },
-  { name: 'Mesin Basuh Pintu Hadapan 10 kg', counter: 'Kaunter C' },
-  { name: 'Peti Sejuk Dua Pintu', counter: 'Kaunter C' },
-  { name: 'Televisyen Pintar 65 Inci', counter: 'Kaunter D' },
-  { name: 'Motosikal 150cc', counter: 'Kaunter D' },
+  { name: 'Dinner Voucher for Two', counter: 'Counter A' },
+  { name: 'Electric Pressure Cooker Set', counter: 'Counter A' },
+  { name: 'Folding Bicycle', counter: 'Counter B' },
+  { name: 'Two-Night Stay in Kundasang', counter: 'Counter B' },
+  { name: '10 kg Front-Load Washing Machine', counter: 'Counter C' },
+  { name: 'Two-Door Refrigerator', counter: 'Counter C' },
+  { name: '65-Inch Smart TV', counter: 'Counter D' },
+  { name: '150cc Motorcycle', counter: 'Counter D' },
 ]

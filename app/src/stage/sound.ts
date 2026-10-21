@@ -78,26 +78,6 @@ class StageSound {
     src.start()
   }
 
-  /** Low firework thump, synthesized (no extra audio file). */
-  boom(gain = 0.6) {
-    if (this.muted) return
-    this.ctx ??= new AudioContext()
-    const ctx = this.ctx
-    const len = Math.floor(ctx.sampleRate * 0.9)
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
-    const data = buf.getChannelData(0)
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 4
-    const src = ctx.createBufferSource()
-    src.buffer = buf
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'lowpass'
-    filter.frequency.value = 420
-    const g = ctx.createGain()
-    g.gain.value = gain
-    src.connect(filter).connect(g).connect(ctx.destination)
-    src.start()
-  }
-
   stopAll() {
     this.spin?.pause()
     this.fanfare?.pause()

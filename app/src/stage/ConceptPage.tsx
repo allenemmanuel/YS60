@@ -1,13 +1,8 @@
 import { useCallback, useRef, type ComponentType, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { secureRandomInt } from '@/lib/random'
-import { BolaUndian } from '@/stage/concepts/BolaUndian'
-import { BungaApi } from '@/stage/concepts/BungaApi'
-import { Buruj } from '@/stage/concepts/Buruj'
 import { Gulungan } from '@/stage/concepts/Gulungan'
-import { Kad } from '@/stage/concepts/Kad'
 import { Roda } from '@/stage/concepts/Roda'
-import { Terowong } from '@/stage/concepts/Terowong'
 import { DEMO_NAMES, DEMO_PRIZES } from '@/stage/demoData'
 import { StageFrame } from '@/stage/StageFrame'
 import type { ConceptProps } from '@/stage/useFrame'
@@ -24,53 +19,18 @@ interface Concept {
 
 const CONCEPTS: Concept[] = [
   {
-    name: 'Gulungan',
+    name: 'Gulungan (drum)',
     summary: 'A big drum of names spins, slows down and clunks onto the winner between two gold lines.',
     Component: Gulungan,
     minSpinMs: 4500,
     background: <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 1200px 420px at 50% 600px, rgba(29,91,168,0.32), transparent 70%)' }} />,
   },
   {
-    name: 'Buruj',
-    summary: 'Every guest is a star. The sky swirls, collapses into one point and bursts into the winner’s name.',
-    Component: Buruj,
-    minSpinMs: 4500,
-    background: null,
-  },
-  {
-    name: 'Bola Undian',
-    summary: 'A glass lottery drum full of tumbling balls. One ball pops out of the top, flies forward and opens into the winner’s name.',
-    Component: BolaUndian,
-    minSpinMs: 4500,
-    background: <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 50% 640px, #123563, #08162b 45%, #040c19)' }} />,
-  },
-  {
-    name: 'Roda',
+    name: 'Roda (wheel)',
     summary: 'A giant prize wheel rises from the bottom of the screen. It ticks past the pointer, slows and stops on the winner.',
     Component: Roda,
     minSpinMs: 4000,
     background: null,
-  },
-  {
-    name: 'Terowong',
-    summary: 'Fly through a tunnel of names at warp speed. The winner comes out of the far end and stops right in front of you.',
-    Component: Terowong,
-    minSpinMs: 4000,
-    background: null,
-  },
-  {
-    name: 'Bunga Api',
-    summary: 'Fireworks build up, then one big rocket bursts and its sparks gather into the winner’s name.',
-    Component: BungaApi,
-    minSpinMs: 4000,
-    background: null,
-  },
-  {
-    name: 'Kad',
-    summary: 'Invitation cards fan out and shuffle. One card slides out, grows and flips over to show the winner.',
-    Component: Kad,
-    minSpinMs: 4000,
-    background: <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 1300px 700px at 50% 620px, #123563, #08162b 60%, #040c19)' }} />,
   },
 ]
 
@@ -161,7 +121,7 @@ export function ConceptIndex() {
           <dd>Fullscreen</dd>
           <dt className="font-semibold text-diamond">M</dt>
           <dd>Sound on or off</dd>
-          <dt className="font-semibold text-diamond">1 to 7</dt>
+          <dt className="font-semibold text-diamond">1 or 2</dt>
           <dd>Switch concept</dd>
         </dl>
       </div>

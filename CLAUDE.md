@@ -39,7 +39,7 @@ The app is being rebuilt as a **React app in `app/`**: Vite + TypeScript + Tailw
 - Guests check results via **name search** (`/check`) and a **public live winners board** (`/winners`).
 - **Draw stage:** build 2–3 concepts first and send the user a preview link to pick one before building it for real.
 - **Data:** one record per guest/winner under `events/ys60/`. Atomic multi-path draw claims, `winnerByGuest` to block double wins, explicit prize→winner mapping, void + redraw, Firebase Auth for staff, and `public/` as the only publicly readable node.
-- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules ✅ → 4 Draw concepts (round 2: 7 on preview, waiting for the user to pick one) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
+- **Phases:** 0 prerequisites ✅ → 1 skills ✅ → 2 scaffold `app/` ✅ → 3 data model + rules ✅ → 4 Draw concepts (shortlist: Gulungan + Roda, possibly both as a switchable option) → 5 remaining screens → 6 Playwright tests on `events/ys60-test` → 7 rehearsal on preview channel, then cutover.
 - Full approved plan: [`docs/revamp-plan.md`](docs/revamp-plan.md).
 - **Ask first:** before starting each revamp step (scaffolding, installing, editing app code), tell the user what's about to happen and wait for a go-ahead, even in auto mode.
 
@@ -82,7 +82,7 @@ firebase hosting:channel:deploy preview --config firebase.preview.json --project
 Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by Firestore on a Node server; we use the Realtime Database in the browser) and `braces` (only inside the shadcn CLI, a dev tool). Don't run `npm audit fix --force`, because it downgrades Firebase to v9.
 
 **Draw stage concepts (Phase 4).** Round 1 had 5 concepts. The user **discarded Intan (scramble), Papan Kilat (split-flap) and Sorotan (spotlight)**, kept Gulungan and Buruj, and asked for 5 more. They prefer physical, cinematic motion over text effects. The concepts are at `/concepts` (public, made-up names, no database access) and `/concepts/1`…`/concepts/7`; `?w=0` forces the longest demo name.
-- **Design direction:** *Jubli Intan* (diamond jubilee) + Sabah flag blues instead of the usual black and gold. Tokens are in `app/src/index.css` (`--color-night`, `zircon`, `ice`, `diamond`, `sabah-red`, `gold`, plus `--font-display` Barlow Condensed, `--font-serif` Fraunces, `--font-stage` Manrope, `--ease-out-strong`). Fonts are bundled via `@fontsource` so the venue doesn't need internet for them. Stage copy is in Malay.
+- **Design direction:** *Jubli Intan* (diamond jubilee) + Sabah flag blues instead of the usual black and gold. Tokens are in `app/src/index.css` (`--color-night`, `zircon`, `ice`, `diamond`, `sabah-red`, `gold`, plus `--font-display` Barlow Condensed, `--font-serif` Fraunces, `--font-stage` Manrope, `--ease-out-strong`). Fonts are bundled via `@fontsource` so the venue doesn't need internet for them. **Language: English for all UI text; only the event header ("Malam Sambutan Ulang Tahun ke-60 / Yayasan Sabah") stays Malay** (user, 2026-10-21).
 - **Shared pieces (`app/src/stage/`):**
   - `StageFrame`: fixed 1920×1080 stage, centred with `left/top: 50%` + `translate(-50%, -50%) scale(s)` so it letterboxes into any window (the original grid centring cut off the right and bottom on smaller screens). Clicker keys Space/→/Enter/PageDown; M mute; F fullscreen; 1–7 switch concept; auto-repeat ignored; cursor hides.
   - `useStageCanvas()` (in `useFrame.ts`): canvases are backed by only the pixels on screen (≤1920×1080), and `getCtx()` returns a context scaled to stage units.
@@ -90,15 +90,11 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
   - `FitName` / `fit.ts`: largest size that fits in 2 balanced lines.
   - `sound.ts`: the old mp3s plus a synthesized flap tick; mute is remembered.
   - Sounds live in `app/public/sounds/`.
-- **Concepts:**
+- **Concepts (shortlist, 2026-10-21):**
   1. Gulungan: 3D drum, ease-out matched to spin speed, paylines.
-  2. Buruj: canvas constellation that collapses and bursts.
-  3. Bola Undian: canvas physics lottery drum (balls with initials, paddle kicks). The top ball exits through the chute and opens into the name.
-  4. Roda: giant SVG wheel rising from the bottom, 40 segments. Ticks plus a pointer flick at each peg; ease-out matched to speed; snaps to a segment centre.
-  5. Terowong: warp tunnel. DOM names projected in 3D plus canvas streaks; the winner approaches down the middle (interpolated in 1/z).
-  6. Bunga Api: canvas fireworks with a synthesized `boom()`. The finale's sparks home onto points sampled from the winner's text.
-  7. Kad: Anime.js timelines. Invitation cards fan, shuffle, gather, and the top card grows and flips (CSS `.kad-*` in `stage.css`).
-- All seven are checked with Playwright at 1920×1080 with and without `prefers-reduced-motion`, including the skip-mid-spin path, with no console errors.
+  2. Roda: a giant wheel rising from the bottom, 40 segments, rotated as one compositor layer. Ticks plus a pointer flick at each peg; ease-out matched to speed; snaps to a segment centre.
+  - Removed after user review: Intan, Papan Kilat, Sorotan (round 1); Buruj, Bola Undian, Terowong, Bunga Api, Kad (round 2). Anime.js was uninstalled (only Kad used it). They're in git history (commit `54e7505`) if ever needed.
+- All concepts were checked with Playwright at 1920×1080 with and without `prefers-reduced-motion`, including the skip-mid-spin path, with no console errors.
 - Gotcha: Vite's watcher on Windows sometimes misses a file rewritten from the shell (it served an empty `stage.css`). `touch` the file if styles look missing.
 - **Performance rules (from the 2026-10-20 lag fix):** per frame, change only `transform`/`opacity` on DOM, or draw on a canvas.
   - Batch canvas drawing into a few paths per colour/alpha level.
@@ -227,6 +223,13 @@ firebase deploy --only hosting --project ys60-d283a
     - Kad at 4× CPU slowdown: 26 → 60 fps
   - Redeployed the preview.
 - **Next:** the user picks a concept. Then build it into `/stage` on top of `drawPrize()`, and delete the `/concepts` routes and the unused concepts.
+
+### 2026-10-21 (desktop PC)
+- The user shortlisted **Gulungan (1) and Roda (4)**. We'll refine both; the user may pick one or keep both as options. Removed the other 5 concepts and Anime.js.
+- The UI language is now **English**, except the event header. Stage hints, the prize counter, the "collect your prize" line and the demo prizes were translated.
+- **Next:**
+  - Waiting for the user's feedback on what to improve in each concept.
+  - Proposed: a switchable draw style (`settings.stageStyle: drum|wheel`, needs a rules update) so both can be used.
 
 ---
 
