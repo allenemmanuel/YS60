@@ -103,6 +103,13 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
   - Keep many moving elements small; swap in one full-size element only for the hero moment, as Kad does.
   - Measure with the scratchpad scripts (`perf.py` for fps under CPU throttling, `cost.py` for CDP main-thread breakdown) against `vite preview`, not the dev server.
 
+**Scroll-morph demo (`/morph`, 2026-10-21).** The user asked for a replica of the animejs.com landing animation as a **pure technique demo, in the rainbow colours**, on its own link.
+- `app/src/morph/MorphPage.tsx` + `shapes.ts`, written from scratch (no Anime.js code or assets).
+- One fixed canvas: a pre-rendered glowing ring of 8 rainbow arcs with ticks. Arcs light up with scroll progress through a pie-wedge clip. 324 dots morph between 7 point-set shapes (grid pulse → easing curve + dash stack → sphere → coil → disc → wave field → heart), staggered per dot. The ring tilts aside in section 2.
+- Sticky section text, a scroll ruler bottom-right, and a smaller, lower ring on phones.
+- Batched into 4 alpha paths per frame: 60 fps while scrolling at 4× CPU slowdown.
+- Not yet tied to YS60 content; the user is still deciding what it's for.
+
 **Ideas for Phase 4 (from the user, 2026-10-20):**
 - [Anime.js v4](https://animejs.com/) (`npm i animejs`, MIT, modular ~24 KB): timelines, stagger, SVG line-draw/morph. A good fit for the scramble→gold reveal and a confetti/stagger finale. Wrap it in `createScope({ root })` inside a `useEffect` and revert it on unmount.
 - [FeralUI](https://feralui.dev/): small MIT React packages with playful physics, by mortspace. The most relevant ones:
@@ -230,6 +237,7 @@ firebase deploy --only hosting --project ys60-d283a
 - **Next:**
   - Waiting for the user's feedback on what to improve in each concept.
   - Proposed: a switchable draw style (`settings.stageStyle: drum|wheel`, needs a rules update) so both can be used.
+- Looked at the animejs.com landing animation with the user (a ring that persists while its contents morph on scroll). Built a standalone replica demo at **`/morph`** (rainbow, placeholder text). Checked at desktop and phone sizes with no errors, 60 fps at 4× CPU slowdown. Deployed to the preview channel.
 
 ---
 
