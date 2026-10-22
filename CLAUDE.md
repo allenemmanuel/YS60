@@ -103,12 +103,21 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
   - Keep many moving elements small; swap in one full-size element only for the hero moment, as Kad does.
   - Measure with the scratchpad scripts (`perf.py` for fps under CPU throttling, `cost.py` for CDP main-thread breakdown) against `vite preview`, not the dev server.
 
-**Scroll-morph demo (`/morph`, 2026-10-21).** The user asked for a replica of the animejs.com landing animation as a **pure technique demo, in the rainbow colours**, on its own link.
-- `app/src/morph/MorphPage.tsx` + `shapes.ts`, written from scratch (no Anime.js code or assets).
-- One fixed canvas: a pre-rendered glowing ring of 8 rainbow arcs with ticks. Arcs light up with scroll progress through a pie-wedge clip. 324 dots morph between 7 point-set shapes (grid pulse → easing curve + dash stack → sphere → coil → disc → wave field → heart), staggered per dot. The ring tilts aside in section 2.
-- Sticky section text, a scroll ruler bottom-right, and a smaller, lower ring on phones.
-- Batched into 4 alpha paths per frame: 60 fps while scrolling at 4× CPU slowdown.
-- Not yet tied to YS60 content; the user is still deciding what it's for.
+**Scroll-morph study (`/morph`).** The user wants a faithful replica of the animejs.com landing animation as a **pure technique demo in the rainbow colours**, on its own link. The first simple canvas version (2026-10-21) was "not as expected", so I reverse-engineered their site (2026-10-22). I only read their downloaded `home.js`/`home.css`/HTML in the scratchpad; **no code, models or artwork were copied.**
+- **Their architecture:**
+  - One Anime.js master timeline with chapter labels (`INTRO … HEADING … TOOLBOX … FEATURES … MODULES … SPONSORS … GET_STARTED`), scrubbed by scroll with `onScroll({ sync: .9 })`.
+  - The dial is SVG/HTML placed in a **Three.js scene through CSS3DRenderer**, together with a toon/outline-shaded "engine case" made of **22 custom .glb models**. The case tilts (rotateX 90 / rotateY −135), opens with plates sliding diagonally, and its modules separate and get leader-line labels on a light background.
+  - Per-feature demos run inside the dial; the ring arcs act as a progress bar; headings scramble in; there's a chapter scroll bar with a draggable cursor.
+- **Drop A (done 2026-10-22), in `app/src/morph/`:**
+  - `content.ts`: chapters, copy, colours.
+  - `geometry.ts`: procedural arcs, ticks, sphere rings, circuit and heart.
+  - `demos.ts`: hero easing canvas, 8 feature demos (rotating square, blend shapes, wire sphere drawn by scroll, 13×13 stagger grid, motion path plus morph, a draggable spring disc, clock, resizing viewport) and the heart.
+  - `engine.ts`: master timeline, piecewise scroll → time mapping with smoothing, one-shot heading scrambles, the active-demo switcher, leader lines, and a scroll bar you can click or drag.
+  - `MorphPage.tsx` + `morph.css`.
+  - The dial tilts with CSS 3D for now. Coloured tiles stand in for the 3D parts.
+  - A footer of `min-height: 100lvh` lets the last chapter finish.
+  - Checked at desktop and phone sizes with no errors, ~60 fps scrolling through at 4× CPU slowdown.
+- **Drop B (next, when the user says so):** a Three.js scene with a toon/outline shader and our own procedural engine case (bezel, front/back plates, vents, ~8 module blocks) replacing the tiles. The dial moves into the scene through CSS3DRenderer, then the full tilt → open → label → reassemble choreography. Three.js is not installed yet.
 
 **Ideas for Phase 4 (from the user, 2026-10-20):**
 - [Anime.js v4](https://animejs.com/) (`npm i animejs`, MIT, modular ~24 KB): timelines, stagger, SVG line-draw/morph. A good fit for the scramble→gold reveal and a confetti/stagger finale. Wrap it in `createScope({ root })` inside a `useEffect` and revert it on unmount.
@@ -238,6 +247,13 @@ firebase deploy --only hosting --project ys60-d283a
   - Waiting for the user's feedback on what to improve in each concept.
   - Proposed: a switchable draw style (`settings.stageStyle: drum|wheel`, needs a rules update) so both can be used.
 - Looked at the animejs.com landing animation with the user (a ring that persists while its contents morph on scroll). Built a standalone replica demo at **`/morph`** (rainbow, placeholder text). Checked at desktop and phone sizes with no errors, 60 fps at 4× CPU slowdown. Deployed to the preview channel.
+
+### 2026-10-22 (desktop PC)
+- The user found `/morph` "not as expected" and asked me to reverse-engineer animejs.com. I studied its source (read only) and agreed a two-drop plan, with **Drop A first**; the two draw styles (Gulungan/Roda) resume afterwards.
+- **Drop A done:** a scroll-scrubbed master timeline, the SVG dial with arcs that draw per chapter, 8 feature demos, scrambled and split headings, light toolbox/modules chapters with leader lines and size bars, a heart and closing chapter, and a click/drag scroll bar. Anime.js was reinstalled. Deployed to the preview at `/morph`.
+- **Next:**
+  - User feedback on Drop A.
+  - Then Drop B (Three.js 3D engine case) or back to Gulungan/Roda, as the user decides.
 
 ---
 
