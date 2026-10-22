@@ -117,7 +117,15 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
   - The dial tilts with CSS 3D for now. Coloured tiles stand in for the 3D parts.
   - A footer of `min-height: 100lvh` lets the last chapter finish.
   - Checked at desktop and phone sizes with no errors, ~60 fps scrolling through at 4× CPU slowdown.
-- **Drop B (next, when the user says so):** a Three.js scene with a toon/outline shader and our own procedural engine case (bezel, front/back plates, vents, ~8 module blocks) replacing the tiles. The dial moves into the scene through CSS3DRenderer, then the full tilt → open → label → reassemble choreography. Three.js is not installed yet.
+- **Drop B (done 2026-10-22), in `app/src/morph/three/`:**
+  - `shading.ts`: own GLSL, two passes. The part material writes the ID colour mixed with the view normal into RGB and the light into A; a full-screen pass does edge detection (outlines) and fills shapes flat with lit/shadow tones on the page colour. Uniforms: `uLightMode` (dark ↔ light page) and `uLines` (case visibility).
+  - `model.ts`: the procedural engine case in unit size — bezel with lugs, 3 front and 3 back plates, a slotted vent, and 11 module parts in toolbox-label order. `explodedPosition()` gives the opened-up layout.
+  - `world.ts`: the WebGL renderer plus CSS3DRenderer sharing one camera. World units are CSS px at z = 0, so the HTML dial (a CSS3DObject) and the case line up. `rig` holds the phone offset; the timeline animates `world`. `project()` positions the leader lines.
+  - The engine timeline now animates `world.rotation/position`, the case parts (bezel spin, plates fly apart and back, vent turns, modules explode/spin/shrink) and the uniforms. The case is hidden (`uLines` 0) during the feature chapters.
+  - The frame loop redraws only when the timeline moves and skips WebGL while the case is hidden. Pixel ratio is capped at 1.25.
+  - `/morph` is lazy-loaded as its own ~670 KB chunk, so Three.js never loads on other routes.
+  - Checked at desktop and phone sizes with no errors. About 47 fps at 4× CPU slowdown in headless Chrome, where WebGL is drawn in software (pessimistic).
+  - Three.js r186 (MIT) is installed.
 
 **Ideas for Phase 4 (from the user, 2026-10-20):**
 - [Anime.js v4](https://animejs.com/) (`npm i animejs`, MIT, modular ~24 KB): timelines, stagger, SVG line-draw/morph. A good fit for the scramble→gold reveal and a confetti/stagger finale. Wrap it in `createScope({ root })` inside a `useEffect` and revert it on unmount.
@@ -251,9 +259,8 @@ firebase deploy --only hosting --project ys60-d283a
 ### 2026-10-22 (desktop PC)
 - The user found `/morph` "not as expected" and asked me to reverse-engineer animejs.com. I studied its source (read only) and agreed a two-drop plan, with **Drop A first**; the two draw styles (Gulungan/Roda) resume afterwards.
 - **Drop A done:** a scroll-scrubbed master timeline, the SVG dial with arcs that draw per chapter, 8 feature demos, scrambled and split headings, light toolbox/modules chapters with leader lines and size bars, a heart and closing chapter, and a click/drag scroll bar. Anime.js was reinstalled. Deployed to the preview at `/morph`.
-- **Next:**
-  - User feedback on Drop A.
-  - Then Drop B (Three.js 3D engine case) or back to Gulungan/Roda, as the user decides.
+- User approved Drop B. **Drop B done:** Three.js engine case with an outline/toon post shader; the dial lives in the 3D scene through CSS3DRenderer; tilt → open → labelled exploded view → reassemble; `/morph` lazy-loaded. Deployed to the preview.
+- **Next:** user feedback on `/morph`, then back to the two draw styles (Gulungan/Roda), as agreed.
 
 ---
 

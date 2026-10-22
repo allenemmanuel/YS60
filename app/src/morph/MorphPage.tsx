@@ -6,8 +6,8 @@ import { arcPath, circuitPaths, DIAL, heartGrid, sphereRings, ticks } from '@/mo
 import '@/morph/morph.css'
 
 /**
- * /morph: a scroll-scrubbed study of the animejs.com landing page (Drop A: dial, demos, text, scroll bar).
- * Drop B will put a Three.js scene with 3D parts behind the same timeline.
+ * /morph: a scroll-scrubbed study of the animejs.com landing page.
+ * The dial (HTML/SVG) is placed into a Three.js scene with the engine case (see morph/three).
  */
 export function MorphPage() {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -111,11 +111,6 @@ export function MorphPage() {
               ))}
             </div>
           </div>
-
-          {/* Placeholder parts (become 3D models in Drop B) */}
-          {parts.map((p, i) => (
-            <div key={p} className="mx-marker" style={{ ['--c' as string]: ARC_COLORS[i % ARC_COLORS.length] }} />
-          ))}
 
           <div className="mx-heart">
             {heart.map((d, i) => (

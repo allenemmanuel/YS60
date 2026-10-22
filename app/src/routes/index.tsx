@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate } from 'react-router'
 import { Placeholder } from '@/components/Placeholder'
 import { RequireStaff } from '@/components/RequireStaff'
 import { Login } from '@/routes/Login'
-import { MorphPage } from '@/morph/MorphPage'
 import { ConceptIndex, StageConcept } from '@/stage/ConceptPage'
 
 const staff = (title: string, phase: number) => (
@@ -25,6 +24,6 @@ export const router = createBrowserRouter([
   { path: '/concepts', element: <ConceptIndex /> },
   { path: '/concepts/:id', element: <StageConcept /> },
   // Scroll-morph technique demo (standalone link).
-  { path: '/morph', element: <MorphPage /> },
+  { path: '/morph', lazy: async () => ({ Component: (await import('@/morph/MorphPage')).MorphPage }) },
   { path: '*', element: <Placeholder title="Page not found" /> },
 ])
