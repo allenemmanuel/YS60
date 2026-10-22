@@ -117,15 +117,18 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
   - The dial tilts with CSS 3D for now. Coloured tiles stand in for the 3D parts.
   - A footer of `min-height: 100lvh` lets the last chapter finish.
   - Checked at desktop and phone sizes with no errors, ~60 fps scrolling through at 4× CPU slowdown.
-- **Drop B (done 2026-10-22), in `app/src/morph/three/`:**
-  - `shading.ts`: own GLSL, two passes. The part material writes the ID colour mixed with the view normal into RGB and the light into A; a full-screen pass does edge detection (outlines) and fills shapes flat with lit/shadow tones on the page colour. Uniforms: `uLightMode` (dark ↔ light page) and `uLines` (case visibility).
-  - `model.ts`: the procedural engine case in unit size — bezel with lugs, 3 front and 3 back plates, a slotted vent, and 11 module parts in toolbox-label order. `explodedPosition()` gives the opened-up layout.
-  - `world.ts`: the WebGL renderer plus CSS3DRenderer sharing one camera. World units are CSS px at z = 0, so the HTML dial (a CSS3DObject) and the case line up. `rig` holds the phone offset; the timeline animates `world`. `project()` positions the leader lines.
-  - The engine timeline now animates `world.rotation/position`, the case parts (bezel spin, plates fly apart and back, vent turns, modules explode/spin/shrink) and the uniforms. The case is hidden (`uLines` 0) during the feature chapters.
-  - The frame loop redraws only when the timeline moves and skips WebGL while the case is hidden. Pixel ratio is capped at 1.25.
-  - `/morph` is lazy-loaded as its own ~670 KB chunk, so Three.js never loads on other routes.
-  - Checked at desktop and phone sizes with no errors. About 47 fps at 4× CPU slowdown in headless Chrome, where WebGL is drawn in software (pessimistic).
-  - Three.js r186 (MIT) is installed.
+- **Drop B (2026-10-22):** I first built an outline-shaded "engine case" (in git history, commit `be9516a`). The user said it was "not even close" and asked for **a different model that still assembles, disassembles and moves in 3D**. They chose a **'60' sculpture** with **solid shaded 3D**.
+- **Current 3D (`app/src/morph/three/`):**
+  - `sixty.ts`: a "60" from 5×7 grids, with 35 rounded blocks and discs in rainbow metallic materials plus 4 gold/steel gears in the loops (39 parts).
+  - Six **formations** the parts move between: `scatter`, `home` (the "60"), `exploded` (layered), `ring` (around the dial), `kit` (flat-lay grid) and `heart`.
+  - `labelled` holds 11 part indices for the toolbox lines. `swirl` is a group the timeline turns once over the feature chapters.
+  - `world.ts`: a transparent WebGL canvas with filmic tone mapping, a RoomEnvironment PMREM for reflections, a key light and a hemisphere light, plus CSS3DRenderer for the dial (one camera; world units are CSS px). The root is scaled to one cell = dial/9.2 px. Pixel ratio is capped at 1.25.
+- **Choreography (`engine.ts`):**
+  - `move(from, to, at, {duration, per, spin})` tweens all parts' position, rotation and scale, staggered outward from the centre of the "60".
+  - Scatter → assemble (heading) → hold, then explode with labels on a light page → re-form with a spin → ring (features, turned by scroll) → kit on a tilted table → re-form → heart (sponsors) → final "60" (end).
+  - The dial fades whenever the "60" is the subject, since HTML in CSS3D can't be hidden behind WebGL.
+- Renders only when the timeline moves. Software WebGL in headless Chrome gives ~43 fps at normal CPU speed; a real graphics card should give 60.
+- The old outline shader and `model.ts` were removed.
 
 **Ideas for Phase 4 (from the user, 2026-10-20):**
 - [Anime.js v4](https://animejs.com/) (`npm i animejs`, MIT, modular ~24 KB): timelines, stagger, SVG line-draw/morph. A good fit for the scramble→gold reveal and a confetti/stagger finale. Wrap it in `createScope({ root })` inside a `useEffect` and revert it on unmount.
@@ -261,6 +264,8 @@ firebase deploy --only hosting --project ys60-d283a
 - **Drop A done:** a scroll-scrubbed master timeline, the SVG dial with arcs that draw per chapter, 8 feature demos, scrambled and split headings, light toolbox/modules chapters with leader lines and size bars, a heart and closing chapter, and a click/drag scroll bar. Anime.js was reinstalled. Deployed to the preview at `/morph`.
 - User approved Drop B. **Drop B done:** Three.js engine case with an outline/toon post shader; the dial lives in the 3D scene through CSS3DRenderer; tilt → open → labelled exploded view → reassemble; `/morph` lazy-loaded. Deployed to the preview.
 - **Next:** user feedback on `/morph`, then back to the two draw styles (Gulungan/Roda), as agreed.
+- User: the engine case was "not even close" and asked for a new model. Built the **3D '60' sculpture** (solid shaded; scatter/assemble/explode/ring/kit/heart formations) and deployed it to the preview `/morph`.
+- **Next:** user feedback on the "60", then back to Gulungan/Roda.
 
 ---
 
