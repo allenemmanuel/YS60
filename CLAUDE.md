@@ -91,7 +91,13 @@ Known, accepted: `npm audit` shows 4 "high" items. They are gRPC (only used by F
   - `sound.ts`: the old mp3s plus a synthesized flap tick; mute is remembered.
   - Sounds live in `app/public/sounds/`.
 - **Concepts (shortlist, 2026-10-21):**
-  1. Gulungan: 3D drum, ease-out matched to spin speed, paylines.
+  1. Gulungan, **true 3D since 2026-10-22** (`stage/three/drumScene.ts` + `concepts/Gulungan.tsx`, lazy-loaded so Three.js stays out of other pages):
+     - A lit enamel drum (18 rows, radius ≈ 298 px) with gold rings and rivets and gold paylines.
+     - Names are printed on curved unlit panels, each with its own 1024×128 canvas texture, repainted only when its row changes.
+     - Landing: a quartic ease-out matched to the spin speed, which overshoots 0.42 rows and rolls back. A tick plays per row crossing.
+     - Reveal: the drum recedes and darkens, the names and paylines fade, then a gold flash, rays and the name.
+     - `?q=0.5` renders at a lower resolution for weak laptops.
+     - In headless software WebGL: ~14 fps at full HD, ~20 at `q=0.5`. It's fill-rate bound, so a real GPU should be fine.
   2. Roda: a giant wheel rising from the bottom, 40 segments, rotated as one compositor layer. Ticks plus a pointer flick at each peg; ease-out matched to speed; snaps to a segment centre.
   - Removed after user review: Intan, Papan Kilat, Sorotan (round 1); Buruj, Bola Undian, Terowong, Bunga Api, Kad (round 2). Anime.js was uninstalled (only Kad used it). They're in git history (commit `54e7505`) if ever needed.
 - All concepts were checked with Playwright at 1920×1080 with and without `prefers-reduced-motion`, including the skip-mid-spin path, with no console errors.
@@ -266,6 +272,11 @@ firebase deploy --only hosting --project ys60-d283a
 - **Next:** user feedback on `/morph`, then back to the two draw styles (Gulungan/Roda), as agreed.
 - User: the engine case was "not even close" and asked for a new model. Built the **3D '60' sculpture** (solid shaded; scatter/assemble/explode/ring/kit/heart formations) and deployed it to the preview `/morph`.
 - **Next:** user feedback on the "60", then back to Gulungan/Roda.
+- The user parked `/morph` ("looks good") and chose, for both draw styles: longer suspense, a bigger reveal, a straighter drum, ticks, readable wheel names and more names on the wheel. They want **Gulungan in true 3D** and **Roda "3D-ish"**, plus a **switch to use both** (staff setting `stageStyle`).
+- **Gulungan 3D done** (see the concepts list) and deployed to the preview `/concepts/1`.
+- **Next:**
+  - Roda in 3D: a tilted 3D wheel with the pointer at the 3 o'clock position so names read left to right, names that refresh on the hidden side, a near-miss creep, and a glowing winning wedge.
+  - Then the switch: `settings.stageStyle` plus a rules update the user deploys, and an S key between prizes.
 
 ---
 

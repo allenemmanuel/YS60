@@ -1,7 +1,8 @@
-import { useCallback, useRef, type ComponentType, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useRef, type ComponentType, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { secureRandomInt } from '@/lib/random'
-import { Gulungan } from '@/stage/concepts/Gulungan'
+// 3D concepts load Three.js on demand.
+const Gulungan = lazy(() => import('@/stage/concepts/Gulungan'))
 import { Roda } from '@/stage/concepts/Roda'
 import { DEMO_NAMES, DEMO_PRIZES } from '@/stage/demoData'
 import { StageFrame } from '@/stage/StageFrame'
@@ -20,7 +21,7 @@ interface Concept {
 const CONCEPTS: Concept[] = [
   {
     name: 'Gulungan (drum)',
-    summary: 'A big drum of names spins, slows down and clunks onto the winner between two gold lines.',
+    summary: 'A real 3D drum of names spins, creeps to a stop just past the winner, rolls back onto it and bursts into gold.',
     Component: Gulungan,
     minSpinMs: 4500,
     background: <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 1200px 420px at 50% 600px, rgba(29,91,168,0.32), transparent 70%)' }} />,
@@ -74,7 +75,9 @@ function ConceptStage({ index }: { index: number }) {
       concept={conceptNav}
       background={concept.background}
     >
-      <concept.Component stage={stage} names={DEMO_NAMES} />
+      <Suspense fallback={null}>
+        <concept.Component stage={stage} names={DEMO_NAMES} />
+      </Suspense>
     </StageFrame>
   )
 }

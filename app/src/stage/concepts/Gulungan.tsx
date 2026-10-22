@@ -1,155 +1,159 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { shuffle } from '@/lib/random'
 import { FitName } from '@/stage/FitName'
-import { mod, useFrame, useLatest, type ConceptProps } from '@/stage/useFrame'
+import { stageSound } from '@/stage/sound'
+import { createDrumScene, type DrumScene } from '@/stage/three/drumScene'
+import { clamp01, mod, useFrame, useLatest, type ConceptProps } from '@/stage/useFrame'
 
-/** Concept 1: a big drum of names that spins, slows and clunks onto the winner. */
+/**
+ * Concept 1 (Gulungan): a real 3D drum of names (Three.js). It spins, slows into a long creep,
+ * nudges just past the winner and rolls back onto it, then a gold flash reveals the name.
+ */
 
-const SLOTS = 11 // rendered faces, centred on the payline
-const HALF = Math.floor(SLOTS / 2)
-const ROW_H = 128
-const STEP = (21 * Math.PI) / 180 // angle between faces
-const RADIUS = ROW_H / STEP
-const CENTER_Y = 600
-const TOP_SPEED = 15 // rows per second
-const SETTLE_MS = 380
+const TOP_SPEED = 16 // rows per second
+const LAND_S = 5.2 // main slow-down
+const OVERSHOOT = 0.42 // rows past the winner before rolling back
+const SETTLE_S = 0.8
+const HOLD_S = 0.35
+const FLASH_S = 1.1
 
-const rowFont = (name: string) => Math.min(100, Math.floor(1560 / (name.length * 0.44)))
-
-export function Gulungan({ stage, names }: ConceptProps) {
+export default function Gulungan({ stage, names }: ConceptProps) {
   const seq = useMemo(() => shuffle(names), [names])
-  const faces = useRef<(HTMLDivElement | null)[]>([])
-  const labels = useRef<(HTMLSpanElement | null)[]>([])
+  const hostRef = useRef<HTMLDivElement>(null)
+  const drumRef = useRef<DrumScene | null>(null)
   const s = useLatest(stage)
   const sim = useRef({
+    phase: '' as string,
     pos: 0,
-    vel: 0.35,
+    vel: 0.3,
     target: null as number | null,
-    landStart: 0,
-    landFrom: 0,
-    landDur: 0,
-    settledAt: 0,
-    phase: stage.phase,
+    landAt: 0,
+    from: 0,
+    dur: 0,
+    lastTick: 0,
+    revealAt: 0,
   })
 
+  useEffect(() => {
+    const host = hostRef.current!
+    const drum = createDrumScene()
+    drum.canvas.className = 'absolute inset-0 size-full'
+    host.appendChild(drum.canvas)
+    drumRef.current = drum
+    const nameFor = (row: number) => {
+      const m = sim.current
+      const st = s.current
+      if (m.target !== null && row === m.target && st.winner) return st.winner
+      return seq[mod(row, seq.length)]
+    }
+    drum.setNameFor(nameFor)
+    const fit = () => {
+      const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080)
+      // ?q=0.5 etc. renders fewer pixels (a fallback for weak laptops); the stage still fills the screen.
+      const q = Number(new URLSearchParams(window.location.search).get('q')) || 1
+      drum.resize(Math.min(1, scale * (window.devicePixelRatio || 1)) * Math.min(1, Math.max(0.3, q)))
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    // Canvas text uses the fallback font until the real one loads; repaint then.
+    void document.fonts.load('700 100px "Barlow Condensed"').then(() => drum.repaintAll())
+    drum.repaintAll()
+    return () => {
+      window.removeEventListener('resize', fit)
+      drum.dispose()
+      drum.canvas.remove()
+      drumRef.current = null
+    }
+  }, [seq, s])
+
   useFrame((now, dt) => {
+    const drum = drumRef.current
+    if (!drum) return
     const st = s.current
     const m = sim.current
+    const t = now / 1000
+
     if (st.phase !== m.phase) {
       if (st.phase === 'landing') {
-        // Ease-out cubic whose starting slope matches the current speed: distance = v·D/3.
-        const dur = st.reduced ? 0.6 : 3.4
-        const target = Math.ceil(m.pos + (Math.max(m.vel, 4) * dur) / 3)
+        // Ease-out (quartic) whose starting slope matches the current speed: distance = v·D/4.
+        const v = Math.max(m.vel, 4)
+        const dur = st.reduced ? 0.6 : LAND_S
+        const target = Math.ceil(m.pos + (v * dur) / 4)
         m.target = target
-        m.landFrom = m.pos
-        m.landStart = now
-        m.landDur = (3 * (target - m.pos)) / Math.max(m.vel, 4)
-        if (st.reduced) m.landDur = 0.6
+        m.from = m.pos
+        m.dur = st.reduced ? 0.6 : (4 * (target + OVERSHOOT - m.pos)) / v
+        m.landAt = t
+        drum.repaintAll()
+      }
+      if (st.phase === 'revealed') {
+        m.revealAt = t
+        drum.setHighlight(m.target)
       }
       if (st.phase === 'idle') {
         m.target = null
-        m.vel = 0.35
+        m.vel = 0.3
+        drum.setHighlight(null)
+        drum.setDim(0)
+        drum.setFlash(0)
+        drum.repaintAll()
       }
       m.phase = st.phase
     }
 
     if (st.phase === 'spinning') {
-      const top = st.reduced ? 3 : TOP_SPEED
-      m.vel += (top - m.vel) * Math.min(1, dt * 2.2)
+      const top = st.reduced ? 2.5 : TOP_SPEED
+      m.vel += (top - m.vel) * Math.min(1, dt * 1.8)
       m.pos += m.vel * dt
     } else if (st.phase === 'landing' && m.target !== null) {
-      const t = Math.min(1, (now - m.landStart) / 1000 / m.landDur)
-      if (st.skip || t >= 1) {
+      const el = t - m.landAt
+      const end = m.target + (st.reduced ? 0 : OVERSHOOT)
+      if (st.skip) {
         m.pos = m.target
-        if (!m.settledAt) m.settledAt = now
-        // Small mechanical settle, then reveal.
-        if (st.skip || now - m.settledAt > SETTLE_MS) {
-          m.settledAt = 0
-          st.landed()
-        } else {
-          const k = (now - m.settledAt) / SETTLE_MS
-          m.pos = m.target + 0.08 * Math.sin(k * Math.PI * 2) * (1 - k)
-        }
+        st.landed()
+      } else if (el < m.dur) {
+        const k = el / m.dur
+        m.pos = end - (end - m.from) * (1 - k) ** 4
       } else {
-        m.pos = m.target - (m.target - m.landFrom) * (1 - t) ** 3
+        // Nudge past the winner, then roll back onto it.
+        const k = clamp01((el - m.dur) / SETTLE_S)
+        const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2
+        m.pos = end + (m.target - end) * e
+        if (el > m.dur + SETTLE_S + HOLD_S) st.landed()
       }
     } else if (st.phase === 'idle') {
       m.pos += m.vel * dt
     }
 
-    const base = Math.round(m.pos)
-    const revealed = st.phase === 'revealed'
-    for (let i = 0; i < SLOTS; i++) {
-      const row = base + i - HALF
-      const theta = (row - m.pos) * STEP
-      const face = faces.current[i]
-      const label = labels.current[i]
-      if (!face || !label) continue
-      const isWinnerRow = m.target !== null && row === m.target && st.winner
-      const name = isWinnerRow ? st.winner! : seq[mod(row, seq.length)]
-      if (label.textContent !== name) {
-        label.textContent = name
-        label.style.fontSize = `${rowFont(name)}px`
-      }
-      const visible = Math.abs(theta) < Math.PI / 2
-      const y = RADIUS * Math.sin(theta)
-      const z = RADIUS * (Math.cos(theta) - 1)
-      face.style.transform = `translate3d(0, ${y}px, ${z}px) rotateX(${-theta}rad)`
-      const light = visible ? Math.cos(theta) ** 3 : 0
-      face.style.opacity = String(revealed ? (isWinnerRow ? 0 : light * 0.04) : light)
-      face.style.color = Math.abs(theta) < STEP / 2 && st.phase !== 'spinning' ? 'var(--color-gold)' : ''
+    // A tick each time a row crosses the paylines.
+    const crossed = Math.floor(m.pos + 0.5)
+    if (crossed !== m.lastTick) {
+      m.lastTick = crossed
+      if (st.phase === 'spinning' || st.phase === 'landing') stageSound.tick()
     }
+
+    drum.setPosition(m.pos)
+    if (st.phase === 'revealed') {
+      const k = clamp01((t - m.revealAt) / (st.reduced ? 0.01 : FLASH_S))
+      drum.setFlash(st.reduced ? 0 : k)
+      drum.setDim(clamp01((t - m.revealAt) / 0.35))
+    }
+    drum.render()
   })
 
   return (
-    <div className="absolute inset-0" aria-hidden={stage.phase !== 'revealed'}>
-      <div
-        className="absolute inset-x-0"
-        style={{
-          top: CENTER_Y - 400,
-          height: 800,
-          perspective: 1400,
-        }}
-      >
-        {Array.from({ length: SLOTS }, (_, i) => (
-          <div
-            key={i}
-            ref={(el) => {
-              faces.current[i] = el
-            }}
-            className="absolute inset-x-0 flex items-center justify-center font-display font-bold text-diamond will-change-transform"
-            style={{ top: 400 - ROW_H / 2, height: ROW_H, backfaceVisibility: 'hidden' }}
-          >
-            <span
-              ref={(el) => {
-                labels.current[i] = el
-              }}
-              className="whitespace-nowrap"
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Payline: marks where the winning name stops. */}
-      {[-1, 1].map((side) => (
-        <div
-          key={side}
-          className="pointer-events-none absolute inset-x-[220px] h-px bg-gold/60 transition-opacity duration-300"
-          style={{ top: CENTER_Y + side * (ROW_H / 2 + 4), opacity: stage.phase === 'revealed' ? 0 : 1 }}
-        />
-      ))}
-
+    <div className="absolute inset-0">
+      <div ref={hostRef} className="absolute inset-0" aria-hidden="true" />
       <AnimatePresence>
         {stage.phase === 'revealed' && stage.winner && (
           <motion.div
             key={stage.winner}
             className="absolute inset-x-0 flex justify-center text-center font-display font-extrabold text-gold"
-            style={{ top: CENTER_Y - 170, height: 340, alignItems: 'center' }}
-            initial={{ opacity: 0, transform: 'scale(0.94)' }}
+            style={{ top: 600 - 170, height: 340, alignItems: 'center', textShadow: '0 0 40px rgba(224, 180, 92, 0.45)' }}
+            initial={{ opacity: 0, transform: 'scale(0.9)' }}
             animate={{ opacity: 1, transform: 'scale(1)' }}
             exit={{ opacity: 0, transition: { duration: 0.2 } }}
-            transition={{ type: 'spring', duration: 0.6, bounce: 0.25 }}
+            transition={{ type: 'spring', duration: 0.6, bounce: 0.3, delay: 0.12 }}
           >
             <FitName text={stage.winner} width={1640} maxSize={190} minSize={90} lineHeight={0.98} />
           </motion.div>
