@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en" data-design="cards">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Card Shuffle · Lucky Draw</title>
+<link rel="stylesheet" href="../vendor/fonts/cards.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+/* Layout: a green felt card table; name cards gather, riffle, deal face down, and one turns over centre stage; title top-left, Shuffle docked bottom-centre */
+:root { --bg: #072619; --ink: #fbf6ea; --muted: #a8c9b5; --accent: #e3c372; --accent-2: #b08a35; --btn-ink: #22170a;
+  --display: "Playfair Display", Georgia, serif; --body: "Lato", "Segoe UI", system-ui, sans-serif; --cw: 120px; }
+body { background: radial-gradient(75% 70% at 50% 50%, #12603f 0%, #0b3d28 55%, #052014 100%); }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .5;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 .1 0 0 0 0 .05 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+body::after { content: ""; position: fixed; inset: 3vmin; border: 2px solid rgba(227,195,114,.22); border-radius: 50% / 38%; pointer-events: none; }
+#table { position: fixed; inset: 0; perspective: 1400px; }
+.card { position: absolute; left: 0; top: 0; width: var(--cw); height: calc(var(--cw) * 1.4); will-change: transform; transform-style: preserve-3d; }
+.inner { position: absolute; inset: 0; transform-style: preserve-3d; }
+.face { position: absolute; inset: 0; border-radius: calc(var(--cw) * .08); backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+.back { background: #f6efe0; padding: calc(var(--cw) * .06); }
+.back::before { content: ""; position: absolute; inset: calc(var(--cw) * .06); border-radius: calc(var(--cw) * .05);
+  background: radial-gradient(circle at 50% 50%, transparent 0 18%, rgba(227,195,114,.9) 19% 21%, transparent 22%),
+    repeating-linear-gradient(45deg, #8c1d2b 0 6px, #6c1220 6px 12px); border: 2px solid #e3c372; }
+.front { background: linear-gradient(180deg, #fffaf0, #f3e7cc); transform: rotateY(180deg); display: grid; grid-template-rows: auto 1fr auto; padding: 7% 8%; text-align: center; color: #3b1d0b; }
+.front::before { content: ""; position: absolute; inset: 4%; border: 1.5px solid #c9a24c; border-radius: calc(var(--cw) * .05); pointer-events: none; }
+.front .pip { font: 700 calc(var(--cw) * .14)/1 var(--display); color: #a3192b; }
+.front .fit { display: grid; place-items: center; overflow: hidden; min-height: 0; }
+.front .nm { font-family: var(--display); font-weight: 700; line-height: 1.08; overflow-wrap: normal; text-wrap: balance; }
+.card.lit .back { box-shadow: 0 0 0 3px #ffe9a8, 0 0 30px rgba(255,220,130,.8), 0 10px 20px rgba(0,0,0,.4); }
+.spot { position: fixed; z-index: 1; width: 40vmin; height: 40vmin; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, rgba(255,240,200,.28), transparent 65%); transform: translate(-50%, -50%); transition: opacity .4s; }
+</style>
+</head>
+<body>
+<div id="table" aria-hidden="true"></div>
+<div class="spot" id="spot"></div>
+<div class="ui top"><div><h1 data-ld-prize>Lucky Draw</h1><p id="meta"></p></div><button id="soundBtn" class="ghost" type="button">Sound on</button></div>
+<div class="ui bottom"><div class="controls"><button id="draw" type="button">Shuffle</button><button id="reset" class="ghost" type="button" hidden>New draw</button></div><p class="hint" id="hint"></p></div>
+<div id="result" class="sr" role="status" aria-live="polite"></div>
+
+<script src="../core.js"></script>
+<script>
+(() => {
+const table = document.getElementById('table'), spot = document.getElementById('spot');
+const MAXC = 12, SUITS = ['♥', '♦', '♣', '♠'];
+let W, H, CW, CH, cards = [];
+const EASE = 'cubic-bezier(.22,.8,.24,1)', SNAP = 'cubic-bezier(.5,0,.2,1)';
+const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function measure() {
+  W = innerWidth; H = innerHeight;
+  CW = Math.round(Math.max(64, Math.min(W / 8.2, H / 4.4, 150))); CH = CW * 1.4;
+  document.documentElement.style.setProperty('--cw', CW + 'px');
+}
+const tf = p => `translate3d(${(p.x - CW / 2).toFixed(1)}px, ${(p.y - CH / 2).toFixed(1)}px, ${p.z || 0}px) rotate(${(p.r || 0).toFixed(2)}deg) scale(${p.s || 1})`;
+function move(c, p, dur, { easing = EASE, delay = 0, arc = 0 } = {}) {
+  const from = tf(c.p); c.p = { ...c.p, ...p }; const to = tf(c.p);
+  c.el.style.transform = to;
+  if (LD.reduced || !dur) return Promise.resolve();
+  const frames = arc ? [{ transform: from }, { transform: tf({ ...c.p, y: c.p.y - arc, s: (c.p.s || 1) * 1.06 }), offset: 0.5 }, { transform: to }] : [{ transform: from }, { transform: to }];
+  return c.el.animate(frames, { duration: dur, delay, easing, fill: 'backwards' }).finished.catch(() => {});
+}
+function flip(c, up, dur = 700) {
+  const to = up ? 'rotateY(180deg)' : 'rotateY(0deg)', from = c.inner.style.transform || 'rotateY(0deg)';
+  c.inner.style.transform = to;
+  if (LD.reduced) return Promise.resolve();
+  return c.inner.animate([{ transform: from }, { transform: (up ? 'rotateY(90deg)' : 'rotateY(90deg)') + ' scale(1.08)', offset: .5 }, { transform: to }], { duration: dur, easing: 'cubic-bezier(.45,0,.2,1)' }).finished.catch(() => {});
+}
+function makeCard(name, i) {
+  const el = document.createElement('div'); el.className = 'card';
+  const suit = SUITS[i % 4];
+  el.innerHTML = `<div class="inner"><div class="face back"></div><div class="face front"><div class="pip" style="color:${i % 4 < 2 ? '#a3192b' : '#1d1d1d'}">${suit}</div><div class="fit"><div class="nm">${esc(name)}</div></div><div class="pip" style="transform:rotate(180deg);color:${i % 4 < 2 ? '#a3192b' : '#1d1d1d'}">${suit}</div></div></div>`;
+  table.appendChild(el);
+  const c = { el, inner: el.firstChild, name, p: { x: W / 2, y: H + CH, r: 0 } };
+  el.style.transform = tf(c.p); return c;
+}
+// idle: a relaxed fan across the table
+function fanSlots(n) {
+  // the arc is sized so the outer cards stay on screen
+  const half = Math.min(32, 4 + n * 2.5) * Math.PI / 180, r = (W * 0.4 - CW / 2) / Math.sin(half), top = H * 0.46;
+  return Array.from({ length: n }, (_, i) => {
+    const a = n === 1 ? 0 : (i / (n - 1) * 2 - 1) * half;
+    return { x: W / 2 + Math.sin(a) * r, y: top + (1 - Math.cos(a)) * r, r: a * 180 / Math.PI };
+  });
+}
+function gridSlots(n) {
+  const cols = Math.min(n, W > H ? 6 : 4), rows = Math.ceil(n / cols), gx = Math.min(CW * 1.25, W * 0.9 / cols), gy = Math.min(CH * 1.15, H * 0.62 / rows);
+  return Array.from({ length: n }, (_, i) => {
+    const r = Math.floor(i / cols), inRow = Math.min(cols, n - r * cols), c = i % cols;
+    return { x: W / 2 + (c - (inRow - 1) / 2) * gx, y: H * 0.5 + (r - (rows - 1) / 2) * gy, r: (Math.random() - 0.5) * 6 };
+  });
+}
+async function deal(names) {
+  cards.forEach(c => c.el.remove());
+  cards = names.map(makeCard);
+  const slots = fanSlots(cards.length);
+  await Promise.all(cards.map((c, i) => move(c, slots[i], 750, { delay: i * 45 })));
+}
+function sample(winner) {
+  let list = LD.shuffle(LD.pool().filter(n => n !== winner)).slice(0, winner ? MAXC - 1 : MAXC);
+  if (winner) list.splice(LD.randInt(list.length + 1), 0, winner);
+  return list;
+}
+
+// ---------- the draw ----------
+const riffleSound = n => { for (let i = 0; i < n; i++) LD.snd.noise(0.03, 0.05, { type: 'bandpass', freq: 3000 + Math.random() * 1500, q: 2, when: i * 0.028 }); };
+async function gather() {
+  LD.snd.whoosh(0.6, 0.04);
+  await Promise.all(cards.map((c, i) => move(c, { x: W / 2 + i * 0.6, y: H * 0.5 - i * 0.8, r: (Math.random() - 0.5) * 3, z: i }, 600, { delay: (cards.length - i) * 30 })));
+}
+async function riffle() {
+  const half = Math.ceil(cards.length / 2), L = cards.slice(0, half), R = cards.slice(half), dx = CW * 0.85;
+  await Promise.all([
+    ...L.map((c, i) => move(c, { x: W / 2 - dx, y: H * 0.5 - i * 0.8, r: -6 }, 380, { easing: SNAP })),
+    ...R.map((c, i) => move(c, { x: W / 2 + dx, y: H * 0.5 - i * 0.8, r: 6 }, 380, { easing: SNAP }))
+  ]);
+  // interleave: cards drop alternately from each half, bending up in an arc
+  const merged = []; for (let i = 0; i < Math.max(L.length, R.length); i++) { if (L[i]) merged.push(L[i]); if (R[i]) merged.push(R[i]); }
+  const order = LD.shuffle(merged.map((_, i) => i)).length ? merged : merged;
+  riffleSound(merged.length);
+  await Promise.all(order.map((c, i) => { c.el.style.zIndex = i; return move(c, { x: W / 2 + i * 0.6, y: H * 0.5 - i * 0.8, r: (Math.random() - 0.5) * 3 }, 420, { delay: i * 34, arc: CH * 0.08, easing: SNAP }); }));
+  cards = LD.shuffle(order); cards.forEach((c, i) => c.el.style.zIndex = i);
+}
+async function dealOut() {
+  const slots = gridSlots(cards.length);
+  for (let i = 0; i < cards.length; i++) {
+    LD.snd.noise(0.08, 0.05, { type: 'bandpass', freq: 2400, q: 1 });
+    move(cards[i], slots[i], 520, { arc: 14 });
+    await LD.sleep(110);
+  }
+  await LD.sleep(500);
+}
+async function spotlight(target) {
+  spot.style.opacity = 1;
+  const n = cards.length, laps = Math.max(2, Math.ceil(20 / n)), total = laps * n + cards.indexOf(target);
+  let prev = null;
+  for (let k = 0; k <= total; k++) {
+    const c = cards[k % n]; if (prev) prev.el.classList.remove('lit'); c.el.classList.add('lit'); prev = c;
+    spot.style.left = c.p.x + 'px'; spot.style.top = c.p.y + 'px';
+    LD.snd.tick(1200 + (k % 3) * 60);
+    const left = total - k; await LD.sleep(left > 8 ? 70 : 70 + (8 - left) ** 2 * 9); // slows into the pick
+  }
+  return prev;
+}
+
+let chosen = null;
+LD.stage({
+  accent: '#e3c372', drawingHint: 'Shuffling the deck…',
+  async draw(winner) {
+    if (!cards.some(c => c.name === winner)) cards[LD.randInt(cards.length)].name = winner, cards.forEach(c => c.el.querySelector('.nm').textContent = c.name);
+    await gather(); await LD.sleep(150);
+    for (let r = 0; r < (LD.reduced ? 1 : 3); r++) { await riffle(); await LD.sleep(120); }
+    await dealOut();
+    chosen = await spotlight(cards.find(c => c.name === winner));
+    await LD.sleep(350); spot.style.opacity = 0;
+    // the rest slide off, the chosen card comes to centre and grows, then turns over
+    chosen.el.classList.remove('lit'); chosen.el.style.zIndex = 100;
+    LD.snd.whoosh(0.8, 0.05);
+    cards.forEach((c, i) => { if (c !== chosen) { move(c, { y: c.p.y + H * 0.9, r: c.p.r + (Math.random() - 0.5) * 40 }, 700, { delay: i * 25, easing: 'cubic-bezier(.5,0,.75,0)' }); } });
+    const s = Math.min((W * 0.62) / CW, (H * 0.66) / CH);
+    await move(chosen, { x: W / 2, y: H * 0.49, r: 0, s, z: 0 }, 1000, { easing: EASE });
+    // size the name for the big card before it flips into view
+    chosen.el.style.willChange = 'auto'; // let the browser re-render the text sharp at the big size
+    const nm = chosen.el.querySelector('.nm'); LD.fitText(nm, { max: Math.round(CW * 0.2), min: 7 });
+    LD.snd.whoosh(0.5, 0.06);
+    await flip(chosen, true, 900);
+    LD.snd.chime(); LD.confetti({ colors: ['#e3c372', '#fbf6ea', '#a3192b', '#1d1d1d'] });
+  },
+  async reset() {
+    if (chosen) { await flip(chosen, false, 600); chosen.el.style.willChange = ''; }
+    chosen = null;
+    await Promise.all(cards.map(c => move(c, { y: H + CH * 2, s: 1 }, 500, { easing: 'cubic-bezier(.5,0,.75,0)' })));
+    await deal(sample(null));
+  }
+});
+addEventListener('resize', () => { const n = cards.map(c => c.name); measure(); cards.forEach(c => c.el.remove()); cards = n.map(makeCard); const sl = fanSlots(cards.length); cards.forEach((c, i) => move(c, sl[i], 0)); });
+measure(); deal(sample(null));
+})();
+</script>
+</body>
+</html>

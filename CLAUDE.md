@@ -278,6 +278,12 @@ firebase deploy --only hosting --project ys60-d283a
   - Roda in 3D: a tilted 3D wheel with the pointer at the 3 o'clock position so names read left to right, names that refresh on the hidden side, a near-miss creep, and a glowing winning wedge.
   - Then the switch: `settings.stageStyle` plus a rules update the user deploys, and an S key between prizes.
 
+### 2026-10-23 (desktop PC)
+- Added a **Concept Page** button to the hub (`index.html`, after Draw) that opens `studio/index.html`.
+- `studio/` is a copy of the Lucky Draw Studio runtime (`core.js`, `index.html`, `designs/`, `vendor/`): 22 working draw designs. It is separate from the YS60 draw data. Its names and winners are stored in the browser's localStorage, not in the YS60 database.
+- Checked locally: the button shows on the hub, the studio hub lists 22 designs, and a design opens with no console errors. Not deployed, not committed.
+- **Next:** decide which design (if any) becomes the real draw stage, and whether the studio stays as a concept page or is removed before the event.
+
 ---
 
 ## Open items / next steps

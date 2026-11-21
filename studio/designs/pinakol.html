@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en" data-design="pinakol">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pinakol · Lucky Draw</title>
+<link rel="stylesheet" href="../vendor/fonts/pinakol.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+/* Layout: a full-screen beadwork weave inspired by Rungus pinakol (black, white, red, yellow); it re-weaves from the
+   centre, names surface in the beads, then the weave parts like a curtain to reveal the winner in the centre. */
+:root { --bg: #0e0a08; --ink: #f6f0e4; --muted: #c9b9a2; --accent: #e9c25a; --accent-2: #b8312a; --btn-ink: #1a0f06;
+  --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --body: "Manrope", "Segoe UI", system-ui, sans-serif; }
+.ui.top { background: linear-gradient(180deg, rgba(10,7,5,.85), rgba(10,7,5,0)); padding-bottom: 28px; }
+.ui.bottom { background: linear-gradient(0deg, rgba(10,7,5,.85), rgba(10,7,5,0)); padding-top: 28px; }
+.ui.top h1 { font-weight: 600; letter-spacing: .02em; color: #f2d58a; }
+#draw { font-family: var(--body); font-weight: 600; font-size: 15px; letter-spacing: .34em; padding: 16px 52px; }
+#weave { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.winner { visibility: hidden; padding: 16vh 0 18vh; }
+.winner .box { width: var(--gap, 60vw); max-height: 60vh; gap: 1.4vh; padding: 0 3vw; }
+.winner .lbl { color: rgba(246,240,228,.72); letter-spacing: .5em; font-size: clamp(11px, 1.2vw, 14px); }
+.winner .name { font-family: var(--display); font-weight: 700; line-height: 1.04; color: #f6f0e4; text-shadow: 0 2px 18px rgba(0,0,0,.7); }
+.winner .name .ch { display: inline-block; will-change: transform, opacity; }
+.winner .name .wd { display: inline-block; white-space: nowrap; }
+.winner .rule { width: min(260px, 30vw); height: 6px; background: radial-gradient(circle at 3px 3px, #e9c25a 2.4px, transparent 2.6px) 0 0 / 12px 6px repeat-x; }
+.winner .prize { letter-spacing: .3em; color: var(--accent); }
+.note { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 11; font-size: 10px; letter-spacing: .12em; color: rgba(201,185,162,.5); pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="weave"></canvas>
+<div class="ui top"><div><h1 data-ld-prize>Lucky Draw</h1><p id="meta"></p></div><button id="soundBtn" class="ghost" type="button">Sound on</button></div>
+<div class="winner" id="win" aria-hidden="true"><div class="box"><div class="lbl">Woven into the day</div><div class="fit"><div class="name" id="winName"></div></div><div class="rule" id="rule"></div><div class="prize" data-ld-prize></div></div></div>
+<div class="ui bottom"><div class="controls"><button id="draw" type="button">Weave</button><button id="reset" class="ghost" type="button" hidden>New draw</button></div><p class="hint" id="hint"></p></div>
+<div id="result" class="sr" role="status" aria-live="polite"></div>
+<div class="note">Motifs illustrative · pending cultural review</div>
+
+<script src="../core.js"></script>
+<script type="importmap">
+{ "imports": { "gsap": "../vendor/gsap/index.js", "gsap/": "../vendor/gsap/" } }
+</script>
+<script type="module">
+import { gsap } from 'gsap';
+import { SplitText } from 'gsap/SplitText.js';
+gsap.registerPlugin(SplitText);
+
+const cv = document.getElementById('weave'), g = cv.getContext('2d');
+// palette: black, white, red, yellow (+ gold for names surfacing and the frame)
+const COLORS = ['#141010', '#efe9dc', '#b3241f', '#e6b43a', '#f2cf6a'];
+let sprites = [];
+function makeSprites(d) {
+  sprites = COLORS.map(c => { const s = document.createElement('canvas'); s.width = s.height = Math.ceil(d * 2); const x = s.getContext('2d'), r = d * .46, cx = d;
+    const gr = x.createRadialGradient(cx - r * .35, cx - r * .4, r * .1, cx, cx, r);
+    gr.addColorStop(0, shade(c, .45)); gr.addColorStop(.55, c); gr.addColorStop(1, shade(c, -.55));
+    x.fillStyle = gr; x.beginPath(); x.arc(cx, cx, r, 0, 6.29); x.fill();
+    x.fillStyle = 'rgba(255,255,255,.55)'; x.beginPath(); x.arc(cx - r * .38, cx - r * .4, r * .18, 0, 6.29); x.fill();
+    return s; });
+}
+function shade(hex, k) { const n = parseInt(hex.slice(1), 16); let r = n >> 16, gg = n >> 8 & 255, b = n & 255;
+  const f = v => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k)); return `rgb(${f(r)},${f(gg)},${f(b)})`; }
+
+// two related weave patterns (illustrative, after Rungus pinakol: lozenges, zigzag bands, contrasting borders)
+function patternA(i, j) {
+  const u = i + j, v = i - j, P = 12, m = ((u % P) + P) % P, n = ((v % P) + P) % P, d = Math.abs(m - 6) + Math.abs(n - 6);
+  if (((j % 22) + 22) % 22 === 0) return (i & 1) ? 2 : 1;              // zigzag band rows
+  if (((j % 22) + 22) % 22 === 1) return ((i + 1) % 4 < 2) ? 3 : 0;
+  if (m === 0 || n === 0) return 2; if (d <= 1) return 3; if (d === 3) return 1; return 0;
+}
+function patternB(i, j) {
+  const u = i + j, v = i - j, P = 16, m = ((u % P) + P) % P, n = ((v % P) + P) % P, d = Math.abs(m - 8) + Math.abs(n - 8);
+  if (((j % 22) + 22) % 22 === 11) return (i & 1) ? 3 : 2;
+  if (m === 0 || n === 0) return 1; if (d <= 2) return 2; if (d === 4 || d === 5) return 3; return 0;
+}
+
+let W = 0, H = 0, dpr = 1, D = 14, cols = 0, rows = 0, beads = [];
+function layout() {
+  dpr = Math.min(devicePixelRatio, 2); W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  D = Math.max(10, Math.round(Math.min(W, H) / 52)); makeSprites(D);
+  cols = Math.ceil(W / D) + 2; rows = Math.ceil(H / D) + 2; beads = [];
+  const ci = Math.floor(cols / 2), cj = Math.floor(rows / 2);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const di = i - ci, dj = j - cj;
+    beads.push({ i, j, x: (i - .5) * D + (j & 1 ? D / 2 : 0), y: (j - .5) * D, a: patternA(di, dj), b: patternB(di, dj), r: Math.hypot(di, dj * 1.2), jit: Math.random(), name: 0 });
+  }
+  maxR = Math.max(...beads.map(b => b.r));
+}
+let maxR = 1;
+addEventListener('resize', () => { layout(); });
+layout();
+
+// stamp a name into the bead grid (gold beads where the letters fall)
+function stampName(text, slot) {
+  const c = document.createElement('canvas'); c.width = cols; c.height = rows; const x = c.getContext('2d');
+  let fs = Math.floor(rows * .3); x.font = `700 ${fs}px "Manrope", sans-serif`;
+  while (fs > 6 && x.measureText(text).width > cols * .8) { fs--; x.font = `700 ${fs}px "Manrope", sans-serif`; }
+  x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, cols / 2, rows * (.3 + slot * .2));
+  const px = x.getImageData(0, 0, cols, rows).data;
+  return beads.map(b => px[(b.j * cols + b.i) * 4 + 3] > 110 ? 1 : 0);
+}
+
+// state: weave (A→B re-weave front, 0..1), wave (ripple strength), n0..n2 (names surfacing), open (curtain), gap (half-width in px)
+const P = { weave: 0, wave: 0, n0: 0, n1: 0, n2: 0, open: 0 };
+let masks = [null, null, null], gapHalf = 300, idleT = 0;
+const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+function render() {
+  g.fillStyle = '#0e0a08'; g.fillRect(0, 0, W, H);
+  const cx = W / 2, still = LD.reduced ? 0 : 1;
+  for (let k = 0; k < beads.length; k++) {
+    const b = beads[k];
+    // re-weave front travels outward from the centre; each bead pops as it changes
+    const front = P.weave * (maxR + 6) - b.r - b.jit * 3, flip = sm(front / 3);
+    let col = flip > .5 ? b.b : b.a, s = 1 - .45 * Math.sin(Math.PI * flip);
+    // ripple
+    s *= 1 + .12 * P.wave * Math.sin(b.r * .55 - idleT * 4) * still;
+    // names surfacing
+    // each name rises (nk 0→.2), holds in gold, and sinks back (→1)
+    for (let n = 0; n < 3; n++) { const nk = P['n' + n]; if (nk > 0 && nk < 1 && masks[n] && masks[n][k]) { if (nk > .18 && nk < .86) col = 4; s *= 1 + .15 * Math.sin(Math.PI * nk); } }
+    // curtain: each half slides outward; rows nearer the middle lead, giving the opening a soft curve
+    let x = b.x;
+    if (P.open > 0) { const rowLag = Math.abs(b.j - rows / 2) / rows; const o = sm(Math.min(1, P.open * 1.25 - rowLag * .5)) * Math.max(1, P.open);
+      x += (b.x < cx ? -1 : 1) * o * gapHalf; }
+    // the beads at the parted edges become a gold border band
+    if (P.open > .02) { const edge = Math.abs(Math.abs(b.x - cx) - 0) < D * 1.6; if (edge) col = 4; }
+    const sz = D * 2 * s;
+    g.drawImage(sprites[col], x - sz / 2, b.y - sz / 2, sz, sz);
+  }
+}
+gsap.ticker.add((t, dms) => { idleT += Math.min(dms / 1000, .05); render(); });
+
+// ---------- sound: soft bead clicks ----------
+function clicks(n, over) { if (LD.reduced) return; for (let i = 0; i < n; i++) setTimeout(() => LD.snd.tone(1800 + Math.random() * 900, .03, .008, 'triangle'), Math.random() * over * 1000); }
+
+// ---------- reveal ----------
+const winEl = document.getElementById('win'), nameEl = document.getElementById('winName'), ruleEl = document.getElementById('rule');
+const lblEl = winEl.querySelector('.lbl'), prizeEl = winEl.querySelector('.prize');
+let split = null, tl = null;
+if (location.hash === '#debug') window.__pin = { P, gsap, get tl() { return tl; }, render };
+
+LD.stage({
+  accent: '#e9c25a', drawingHint: 'The weave is being made…',
+  draw(winner) {
+    // three names surface in the beads (first names only, so they stay legible)
+    const pool = LD.shuffle(LD.pool()); masks = [0, 1, 2].map(n => pool.length ? stampName(pool[n % pool.length].split(' ')[0].toUpperCase(), n) : null);
+    gapHalf = Math.min(W * .36, Math.max(W * .22, 380));
+    winEl.style.setProperty('--gap', (gapHalf * 2 - D * 6) + 'px');
+    if (split) { split.revert(); split = null; }
+    nameEl.textContent = winner;
+    gsap.set(winEl, { autoAlpha: 1 }); gsap.set([lblEl, prizeEl], { autoAlpha: 0 }); gsap.set(ruleEl, { scaleX: 0 });
+    LD.fitText(nameEl, { max: Math.min(96, innerWidth * .06), min: 22 });
+    split = new SplitText(nameEl, { type: 'words,chars', wordsClass: 'wd', charsClass: 'ch' });
+    gsap.set(split.chars, { autoAlpha: 0, y: 22 });
+    P.weave = 0; P.n0 = P.n1 = P.n2 = 0;
+    tl = gsap.timeline();
+    // 0–3 s: the weave is re-made bead by bead from the centre outward
+    tl.to(P, { weave: 1, duration: 3.0, ease: 'sine.inOut' }, 0)
+      .add(() => clicks(60, 3), 0)
+    // 3–6 s: the pattern ripples; names surface in gold beads and sink back
+      .to(P, { wave: 1, duration: 1.0, ease: 'sine.inOut' }, 2.8)
+      .to(P, { n0: 1, duration: 1.2, ease: 'sine.inOut' }, 3.1)
+      .to(P, { n1: 1, duration: 1.2, ease: 'sine.inOut' }, 3.9)
+      .to(P, { n2: 1, duration: 1.2, ease: 'sine.inOut' }, 4.7)
+      .to(P, { wave: 0, duration: 1.0, ease: 'sine.inOut' }, 5.4)
+    // 6–9 s: the weave parts like a curtain (a touch past, then settles) to reveal the winner
+      .to(P, { open: 1.03, duration: 1.8, ease: 'sine.inOut' }, 6.0)
+      .to(P, { open: 1, duration: .6, ease: 'sine.inOut' }, 7.8)
+      .add(() => { clicks(40, 1.6); LD.snd.tone(196, 3, .03, 'sine'); LD.snd.tone(293.66, 3, .02, 'sine', .08); }, 6.0)
+      .to(lblEl, { autoAlpha: 1, duration: .8, ease: 'sine.out' }, 7.0)
+      .to(split.chars, { autoAlpha: 1, y: 0, duration: .9, ease: 'back.out(1.6)', stagger: { amount: Math.min(1.0, .028 * split.chars.length) } }, 7.2)
+      .add(() => LD.snd.chime(), 7.4)
+      .to(ruleEl, { scaleX: 1, duration: 1.0, ease: 'power2.out' }, 8.0)
+      .to(prizeEl, { autoAlpha: 1, duration: .8, ease: 'sine.out' }, 8.2);
+    if (LD.reduced) tl.progress(1);
+    return tl.then(() => {});
+  },
+  reset() {
+    tl = gsap.timeline();
+    tl.to(winEl, { autoAlpha: 0, duration: .6 }, 0)
+      .to(P, { open: 0, duration: 1.8, ease: 'sine.inOut' }, .3)
+      .add(() => clicks(30, 1.6), .3)
+      .add(() => { // the new weave becomes the resting one
+        beads.forEach(b => { const t = b.a; b.a = b.b; b.b = t; }); P.weave = 0; if (split) { split.revert(); split = null; } }, 2.2);
+    if (LD.reduced) tl.progress(1);
+    return tl.then(() => {});
+  }
+});
+</script>
+</body>
+</html>
