@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en" data-design="fireworks">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Fireworks · Lucky Draw</title>
+<link rel="stylesheet" href="../vendor/fonts/fireworks.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+/* Layout: full-bleed night sky over a city skyline; fireworks fill the sky, the last burst gathers into the winner's name; title top-left, Launch docked bottom-centre */
+:root { --bg: #04060f; --ink: #fff4dc; --muted: #9fb0d6; --accent: #ffd27a; --accent-2: #e08a2c; --btn-ink: #2a1505;
+  --display: "Cinzel", Georgia, serif; --body: "Jost", "Segoe UI", system-ui, sans-serif; }
+.winner { opacity: 0; transition: opacity 1.4s ease; }
+.winner.show { opacity: 1; }
+.winner .name { color: #fff8e8; text-shadow: 0 0 18px rgba(255,200,110,.9), 0 0 50px rgba(255,140,60,.55); }
+.winner .lbl { color: #ffd27a; text-shadow: 0 0 10px rgba(255,180,80,.6); }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+<div class="ui top"><div><h1 data-ld-prize>Lucky Draw</h1><p id="meta"></p></div><button id="soundBtn" class="ghost" type="button">Sound on</button></div>
+<div class="winner" id="win" aria-hidden="true"><div class="box"><div class="lbl">Lighting up the sky for</div><div class="fit"><div class="name" id="winName"></div></div><div class="prize" data-ld-prize></div></div></div>
+<div class="ui bottom"><div class="controls"><button id="draw" type="button">Launch</button><button id="reset" class="ghost" type="button" hidden>New draw</button></div><p class="hint" id="hint"></p></div>
+<div id="result" class="sr" role="status" aria-live="polite"></div>
+
+<script src="../core.js"></script>
+<script>
+(() => {
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const HUES = [[255, 196, 92], [255, 99, 132], [120, 210, 255], [180, 140, 255], [140, 255, 170], [255, 150, 70], [255, 240, 220]];
+let W, H, dpr, sky = null, parts = [], rockets = [], stars = [], idleOn = true, nextIdle = 0, textMode = null;
+
+function resize() {
+  dpr = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // sky + skyline drawn once into a background canvas
+  sky = document.createElement('canvas'); sky.width = W * dpr; sky.height = H * dpr;
+  const s = sky.getContext('2d'); s.scale(dpr, dpr);
+  const gr = s.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#02030a'); gr.addColorStop(0.65, '#0a1230'); gr.addColorStop(1, '#1a1838');
+  s.fillStyle = gr; s.fillRect(0, 0, W, H);
+  let x = 0; const base = H * 0.86;
+  while (x < W) {
+    const bw = 30 + Math.random() * 70, bh = H * (0.04 + Math.random() * (Math.random() < 0.15 ? 0.2 : 0.09));
+    s.fillStyle = '#05070f'; s.fillRect(x, base - bh, bw, H - base + bh);
+    for (let wy = base - bh + 8; wy < H - 6; wy += 9) for (let wx = x + 5; wx < x + bw - 5; wx += 8)
+      if (Math.random() < 0.22) { s.fillStyle = `rgba(255,${190 + Math.random() * 50 | 0},120,${0.25 + Math.random() * 0.45})`; s.fillRect(wx, wy, 3, 4); }
+    x += bw + 2;
+  }
+  stars = Array.from({ length: Math.round(W * H / 6000) }, () => ({ x: Math.random() * W, y: Math.random() * H * 0.7, r: Math.random() * 1.2 + 0.2, p: Math.random() * 6 }));
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+}
+
+// ---------- fireworks ----------
+function rocket(tx, ty, opts = {}) {
+  const x0 = tx + (Math.random() - 0.5) * W * 0.1, y0 = H * 0.9;
+  rockets.push({ x: x0, y: y0, sx: x0, sy: y0, tx, ty, t: 0, T: opts.T || 1.1 + Math.random() * 0.4, hue: opts.hue || HUES[LD.randInt(HUES.length)], kind: opts.kind || 'peony', onBurst: opts.onBurst });
+  LD.snd.noise(opts.T || 1.2, 0.025, { type: 'highpass', freq: 3000, q: 0.5, attack: 0.3 }); // whistle-ish hiss
+}
+function burst(x, y, hue, kind) {
+  const n = kind === 'ring' ? 90 : kind === 'willow' ? 140 : 160, speed = Math.min(W, H) / 170;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.05;
+    const v = kind === 'ring' ? speed * 1.1 : speed * (0.3 + Math.random() * 0.9);
+    const c = Math.random() < 0.15 ? [255, 250, 235] : hue;
+    parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: kind === 'willow' ? 0.006 : 0.011 + Math.random() * 0.008,
+      c, size: 1.6 + Math.random() * 1.2, drag: kind === 'willow' ? 0.965 : 0.955, grav: kind === 'willow' ? 0.035 : 0.05, twinkle: Math.random() < 0.3 });
+  }
+  LD.snd.boom(); LD.snd.noise(0.9, 0.05, { type: 'highpass', freq: 2500, q: 0.3, when: 0.15 }); // crackle tail
+}
+// sample the winner's name into target points, laid out exactly where the crisp title will appear
+function namePoints(name) {
+  const nameEl = document.getElementById('winName');
+  nameEl.innerHTML = name.split(/\s+/).map(w => `<span>${w.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span>`).join(' ');
+  LD.fitText(nameEl, { max: Math.min(150, innerWidth * 0.11), min: 20 });
+  const cs = getComputedStyle(nameEl), off = document.createElement('canvas');
+  off.width = W; off.height = H; const o = off.getContext('2d');
+  o.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; o.fillStyle = '#fff'; o.textBaseline = 'middle'; o.textAlign = 'center';
+  for (const sp of nameEl.children) { const r = sp.getBoundingClientRect(); o.fillText(sp.textContent, r.left + r.width / 2, r.top + r.height / 2); }
+  const size = parseFloat(cs.fontSize), data = o.getImageData(0, 0, W, H).data, pts = [];
+  const step = Math.max(3, Math.round(size / 18));
+  for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) if (data[(y * W + x) * 4 + 3] > 140) pts.push([x, y]);
+  const MAX = 4200; if (pts.length > MAX) { const k = Math.ceil(pts.length / MAX); return pts.filter((_, i) => i % k === 0); }
+  return pts;
+}
+function nameBurst(x, y, name) {
+  const pts = LD.shuffle(namePoints(name)), speed = Math.min(W, H) / 120;
+  for (const [tx, ty] of pts) {
+    const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random());
+    parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, tx, ty, home: 0, life: 1, decay: 0, c: Math.random() < 0.25 ? [255, 248, 230] : [255, 200 + Math.random() * 40 | 0, 110], size: 1.5 + Math.random(), drag: 0.95, grav: 0, twinkle: true, text: true });
+  }
+  LD.snd.boom(); LD.snd.noise(1.6, 0.06, { type: 'highpass', freq: 2200, q: 0.3, when: 0.2 });
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(2.5, (now - last) / 16.67), t = now / 1000; last = now;
+  // trails: fade the previous frame toward the sky
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = textMode === 'hold' ? 0.5 : 0.22 * dt;
+  g.drawImage(sky, 0, 0, W, H); g.globalAlpha = 1;
+  for (const s of stars) { g.fillStyle = `rgba(255,255,255,${0.25 + 0.25 * Math.sin(t * 2 + s.p)})`; g.fillRect(s.x, s.y, s.r, s.r); }
+  if (idleOn && now > nextIdle) { rocket(W * (0.15 + Math.random() * 0.7), H * (0.15 + Math.random() * 0.3), { kind: ['peony', 'ring', 'willow'][LD.randInt(3)] }); nextIdle = now + 1800 + Math.random() * 1800; }
+  g.globalCompositeOperation = 'lighter';
+  // rockets climb on an ease-out curve with a slight wobble
+  rockets = rockets.filter(r => {
+    r.t += dt / 60; const k = Math.min(1, r.t / r.T), e = LD.ease.outCubic(k);
+    const px = r.x, py = r.y;
+    r.x = r.sx + (r.tx - r.sx) * e + Math.sin(k * 12) * 2; r.y = r.sy + (r.ty - r.sy) * e;
+    g.strokeStyle = `rgba(${r.hue.join(',')},.9)`; g.lineWidth = 2; g.beginPath(); g.moveTo(px, py); g.lineTo(r.x, r.y); g.stroke();
+    if (Math.random() < 0.6) parts.push({ x: r.x, y: r.y, vx: (Math.random() - 0.5) * 0.6, vy: Math.random() * 0.8, life: 0.6, decay: 0.03, c: [255, 210, 150], size: 1.2, drag: 0.9, grav: 0.02 });
+    if (k >= 1) { if (r.onBurst) r.onBurst(r.x, r.y); else burst(r.x, r.y, r.hue, r.kind); return false; }
+    return true;
+  });
+  parts = parts.filter(p => {
+    if (p.text) {
+      p.home = Math.min(1, p.home + 0.012 * dt); // spring strength ramps up, so the burst first flies out, then gathers
+      const k = 0.02 + 0.1 * p.home * p.home;
+      p.vx = (p.vx + (p.tx - p.x) * k * dt) * Math.pow(0.86, dt); p.vy = (p.vy + (p.ty - p.y) * k * dt) * Math.pow(0.86, dt);
+      if (textMode === 'fade') p.life -= 0.012 * dt;
+    } else {
+      p.vx *= Math.pow(p.drag, dt); p.vy = p.vy * Math.pow(p.drag, dt) + p.grav * dt; p.life -= p.decay * dt;
+    }
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.life <= 0) return false;
+    const a = p.life * (p.twinkle ? 0.65 + 0.35 * Math.sin(t * 18 + p.x) : 1);
+    g.fillStyle = `rgba(${p.c[0]},${p.c[1]},${p.c[2]},${a})`;
+    const s = p.size * (p.text ? 1 : 0.6 + p.life * 0.6);
+    g.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+    return true;
+  });
+  requestAnimationFrame(loop);
+}
+
+LD.stage({
+  accent: '#ffd27a', drawingHint: 'Look up…',
+  async draw(winner) {
+    idleOn = false;
+    // a short show: volleys left and right, a finale, then one rocket for the name
+    const vol = (x, y, kind, hue) => rocket(W * x, H * y, { kind, hue, T: 1 });
+    vol(0.2, 0.25, 'peony'); await LD.sleep(350); vol(0.8, 0.22, 'peony'); await LD.sleep(700);
+    vol(0.35, 0.18, 'ring'); vol(0.65, 0.18, 'ring'); await LD.sleep(1100);
+    for (let i = 0; i < 5; i++) { vol(0.12 + i * 0.19, 0.2 + (i % 2) * 0.1, 'willow'); await LD.sleep(220); }
+    await LD.sleep(1500);
+    await new Promise(res => rocket(W / 2, H * 0.42, { T: 1.6, hue: [255, 230, 180], onBurst: (x, y) => { nameBurst(x, y, winner); res(); } }));
+    await LD.sleep(LD.reduced ? 100 : 2600);
+    textMode = 'hold';
+    // crisp text fades in over the sparks so the back of the hall can read it
+    document.getElementById('win').classList.add('show');
+    LD.snd.chime();
+    setTimeout(() => { if (textMode === 'hold') textMode = 'fade'; }, 700);
+    // celebration bursts around the name
+    [[0.15, 0.2], [0.85, 0.2]].forEach(([x, y], i) => setTimeout(() => rocket(W * x, H * y, { kind: 'peony' }), 1200 + i * 500));
+  },
+  async reset() {
+    document.getElementById('win').classList.remove('show');
+    textMode = 'fade'; await LD.sleep(900);
+    parts = parts.filter(p => !p.text); textMode = null; idleOn = true; nextIdle = 0;
+  }
+});
+addEventListener('resize', resize);
+resize(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

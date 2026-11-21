@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en" data-design="lamps">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lamp Relay · Lucky Draw</title>
+<link rel="stylesheet" href="../vendor/fonts/lamps.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+/* Layout: a dark hall with a row of brass oil lamps receding into the distance. One flame is passed along the row,
+   each lamp catches as the flame reaches it, and the flame settles on the last lamp, where the name rises in warm light. */
+:root { --bg: #060403; --ink: #fbf1d6; --muted: #b9a58b; --accent: #e8b96a; --accent-2: #9b6a2a; --btn-ink: #1d1407;
+  --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --body: "Manrope", "Segoe UI", system-ui, sans-serif; }
+body { background: var(--bg); }
+#hall { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#nameBox { position: fixed; left: 0; right: 0; top: 16%; height: 14vh; display: grid; place-items: center; padding: 0 6vw;
+  opacity: 0; pointer-events: none; text-align: center; }
+#name { font-family: var(--display); font-weight: 700; line-height: 1.04; color: #f6dea0; max-width: 100%; overflow-wrap: anywhere; text-shadow: 0 2px 18px rgba(232,185,106,.35); }
+#lbl { position: fixed; left: 0; right: 0; top: calc(16% + 14vh + 6px); margin: 0; text-align: center; font: 600 11px/1 var(--body);
+  letter-spacing: .34em; text-transform: uppercase; color: var(--muted); opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="hall" aria-hidden="true"></canvas>
+<div id="nameBox"><div id="name"></div></div>
+<p id="lbl">The flame comes to rest</p>
+
+<div class="ui top"><div><h1 data-ld-prize>Lucky Draw</h1><p id="meta"></p></div><button id="soundBtn" class="ghost" type="button">Sound on</button></div>
+<div class="ui bottom"><div class="controls"><button id="draw" type="button">Light the lamps</button><button id="reset" class="ghost" type="button" hidden>New draw</button></div><p class="hint" id="hint"></p></div>
+<div id="result" class="sr" role="status" aria-live="polite"></div>
+
+<script src="../core.js"></script>
+<script type="importmap">
+{ "imports": { "gsap": "../vendor/gsap/index.js", "gsap/": "../vendor/gsap/" } }
+</script>
+<script type="module">
+const $ = id => document.getElementById(id);
+const cv = $('hall'), ctx = cv.getContext('2d'), nameBox = $('nameBox'), nameEl = $('name'), lbl = $('lbl');
+const N = 9;                       // lamps in the row; the last one is the winner's
+let W = 0, H = 0, dpr = 1;
+const P = { f: -1, alpha: 1, bloom: 0, t: 0 };   // f = flame position along the row (-1 = not started)
+
+function size() {
+  dpr = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener('resize', size); size();
+
+// lamps recede from the near corner (bottom-left) toward the far end (upper-right)
+function lampPos(t) { return { x: W * (0.12 + 0.70 * t), y: H * (0.80 - 0.34 * t), s: 1 - 0.5 * t }; }
+
+function drawLamp(i) {
+  const p = lampPos(i / (N - 1)), s = p.s;
+  const ig = Math.max(0, Math.min(1, (P.f - i) * 4)) * P.alpha;
+  // base and body
+  ctx.fillStyle = '#3a2812'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12 * s, 13 * s, 4 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#6b4b1f'; ctx.beginPath(); ctx.arc(p.x, p.y, 7 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(214,180,106,.45)'; ctx.lineWidth = 1; ctx.stroke();
+  if (ig <= 0) return;
+  const bloom = i === N - 1 ? P.bloom : 0;
+  const r = 52 * s * (1 + 0.9 * bloom), f = 0.88 + 0.12 * Math.sin(P.t * 8 + i * 1.7);
+  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+  g.addColorStop(0, `rgba(255,238,195,${0.85 * ig * f})`);
+  g.addColorStop(0.35, `rgba(243,178,78,${(0.45 + 0.3 * bloom) * ig * f})`);
+  g.addColorStop(1, 'rgba(243,178,78,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(255,214,128,${ig})`; ctx.beginPath(); ctx.arc(p.x, p.y - 3 * s, 3.2 * s, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawFlame() {
+  const p = lampPos(P.f / (N - 1)), bob = Math.sin(P.t * 14) * 1.2;
+  const g = ctx.createRadialGradient(p.x, p.y - 4 + bob, 0, p.x, p.y - 4 + bob, 26 * p.s);
+  g.addColorStop(0, 'rgba(255,250,225,1)'); g.addColorStop(0.3, 'rgba(255,200,110,.7)'); g.addColorStop(1, 'rgba(255,200,110,0)');
+  ctx.globalAlpha = P.alpha;   // the flame fades out with the lamps on reset, rather than vanishing
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y - 4 + bob, 26 * p.s, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; P.t += dt;
+  const g = ctx.createRadialGradient(W * .5, H * .25, 0, W * .5, H * .25, Math.max(W, H) * .75);
+  g.addColorStop(0, '#2a1d10'); g.addColorStop(1, '#060403');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // the table's edge, along which the lamps stand
+  ctx.strokeStyle = 'rgba(214,180,106,.12)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W * .02, H * .90); ctx.lineTo(W * .98, H * .52); ctx.stroke();
+  for (let i = 0; i < N; i++) drawLamp(i);
+  if (P.f >= 0) drawFlame();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+LD.stage({
+  accent: '#e8b96a', drawingHint: 'The flame is passing down the hall…',
+  async draw(winner) {
+    nameEl.textContent = winner; LD.fitText(nameEl, { max: 64, min: 18 });
+    P.f = 0;
+    let lastLamp = -1;
+    await LD.tween(4800, e => {
+      P.f = e * (N - 1);
+      const k = Math.floor(P.f + 1e-6);
+      if (k !== lastLamp) { lastLamp = k; LD.snd.tone(988 + k * 40, 0.5, 0.02, 'sine'); }
+    }, LD.ease.inOutSine);
+    P.f = N - 1;
+    LD.snd.chime();
+    await LD.tween(1400, e => {
+      P.bloom = e;
+      nameBox.style.opacity = e; nameBox.style.transform = `translateY(${(1 - e) * 12}px)`;
+      lbl.style.opacity = e;
+    }, LD.ease.outCubic);
+  },
+  async reset() {
+    await LD.tween(900, e => {
+      P.alpha = 1 - e; P.bloom = 1 - e;
+      nameBox.style.opacity = 1 - e; lbl.style.opacity = 1 - e;
+    }, LD.ease.inOutSine);
+    P.f = -1; P.alpha = 1; P.bloom = 0;
+    nameBox.style.transform = ''; nameBox.style.opacity = 0; lbl.style.opacity = 0;
+  }
+});
+</script>
+</body>
+</html>

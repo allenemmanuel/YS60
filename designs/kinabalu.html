@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en" data-design="kinabalu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kinabalu Dawn · Lucky Draw</title>
+<link rel="stylesheet" href="../vendor/fonts/kinabalu.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+/* Layout: full-bleed 3D night-to-dawn view of Mount Kinabalu; title top-left, Draw docked bottom-centre;
+   the winner's name is set across the sky above the summit in gold leaf. */
+:root { --bg: #05050c; --ink: #f3ead6; --muted: #b9ab93; --accent: #e3c27a; --accent-2: #b0823a; --btn-ink: #1c1407;
+  --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --body: "Manrope", "Segoe UI", system-ui, sans-serif; }
+.ui.top h1 { font-weight: 600; letter-spacing: .02em; }
+#draw { font-family: var(--body); font-weight: 600; font-size: 15px; letter-spacing: .34em; padding: 16px 52px; }
+/* name sits in the sky, above the summit */
+.winner { visibility: hidden; padding: 10vh 6vw 52vh; }
+.winner .box { max-height: 38vh; gap: 1.2vh; }
+.winner .lbl { color: rgba(243,234,214,.78); letter-spacing: .5em; font-size: clamp(11px, 1.3vw, 15px); }
+.winner .name { font-family: var(--display); font-weight: 600; line-height: 1.02; letter-spacing: .005em; color: #e9c879;
+  filter: drop-shadow(0 2px 10px rgba(30,14,0,.55)); }
+/* gold leaf: every letter carries its own vertical gilt gradient (SplitText chars) */
+.winner .name .ch { display: inline-block; background: linear-gradient(180deg, #fff6d8 0%, #f1d38c 32%, #c99a45 62%, #8e6224 84%, #e2bd6e 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; will-change: transform, opacity; }
+.winner .name .wd { display: inline-block; white-space: nowrap; }
+.winner .rule { width: min(360px, 40vw); height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); transform-origin: 50% 50%; }
+.winner .prize { letter-spacing: .3em; }
+#loading { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; color: var(--muted); letter-spacing: .4em; font-size: 11px; text-transform: uppercase; pointer-events: none; }
+#loading[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="loading">Before dawn…</div>
+<div class="ui top"><div><h1 data-ld-prize>Lucky Draw</h1><p id="meta"></p></div><button id="soundBtn" class="ghost" type="button">Sound on</button></div>
+<div class="winner" id="win" aria-hidden="true"><div class="box"><div class="lbl">At first light</div><div class="fit"><div class="name" id="winName"></div></div><div class="rule" id="rule"></div><div class="prize" data-ld-prize></div></div></div>
+<div class="ui bottom"><div class="controls"><button id="draw" type="button">Draw</button><button id="reset" class="ghost" type="button" hidden>New draw</button></div><p class="hint" id="hint"></p></div>
+<div id="result" class="sr" role="status" aria-live="polite"></div>
+
+<script src="../core.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "../vendor/three/build/three.module.js",
+  "three/addons/": "../vendor/three/examples/jsm/",
+  "gsap": "../vendor/gsap/index.js",
+  "gsap/": "../vendor/gsap/"
+} }
+</script>
+<script>
+setTimeout(() => { if (!window.__kinaReady) { const l = document.getElementById('loading'); l.hidden = false;
+  l.textContent = 'Could not load the 3D engine. Open the studio through a local web server (e.g. python -m http.server), not by double-clicking the file.'; } }, 12000);
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { gsap } from 'gsap';
+import { SplitText } from 'gsap/SplitText.js';
+gsap.registerPlugin(SplitText);
+window.__kinaReady = true;
+
+// ---------- renderer / composer ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+document.getElementById('stage').appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 400);
+// framing: summit ~60% down the screen, leaving the upper sky clear for the winner's name
+const CAM = new THREE.Vector3(0, 3.2, 26), LOOK = new THREE.Vector3(0, 9.8, -20);
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.5, 0.78);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+
+// ---------- scene state, all driven by one GSAP timeline ----------
+// dawn: 0 night → 1 full sunrise; sweep: how far the gold light has run down the ridges from the summit; sunY: sun height
+const P = { dawn: 0, sweep: -0.2, sunY: -3, dolly: 0, mtnLight: 0 };
+
+// ---------- sky (shader on a large backdrop) ----------
+const SKY_W = 420, SKY_H = 200;
+const sky = new THREE.Mesh(new THREE.PlaneGeometry(SKY_W, SKY_H), new THREE.ShaderMaterial({
+  depthWrite: false,
+  uniforms: { dawn: { value: 0 }, sun: { value: new THREE.Vector2(0.5, 0.2) }, aspect: { value: SKY_W / SKY_H } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `
+    uniform float dawn; uniform vec2 sun; uniform float aspect; varying vec2 vUv;
+    void main(){
+      float h = vUv.y;
+      // night palette → dawn palette, zenith and horizon
+      // visible band of this backdrop is roughly uv.y 0.08 (horizon) .. 0.65 (top of screen)
+      vec3 zN = vec3(.010,.012,.035), hN = vec3(.045,.040,.090);
+      vec3 zD = vec3(.030,.040,.115), mD = vec3(.20,.10,.16), hD = vec3(.85,.40,.16);
+      vec3 night = mix(hN, zN, smoothstep(.25,.6,h));
+      vec3 day = mix(mix(hD, mD, smoothstep(.27,.36,h)), zD, smoothstep(.34,.56,h));
+      vec3 c = mix(night, day, smoothstep(0.,1.,dawn));
+      // sun glow: a tight halo plus a soft wide warmth, never a wash
+      vec2 d = (vUv - sun) * vec2(aspect, 1.);
+      float r = length(d);
+      c += vec3(1.,.70,.38) * (exp(-r*22.) * .65 + exp(-r*6.) * .16) * smoothstep(.05,.7,dawn);
+      gl_FragColor = vec4(c, 1.);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`
+}));
+sky.position.set(0, 40, -120); scene.add(sky);
+
+// ---------- stars ----------
+const starGeo = new THREE.BufferGeometry(); {
+  const n = 1400, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { p[i*3] = (Math.random() - .5) * 300; p[i*3+1] = 12 + Math.pow(Math.random(), .7) * 90; p[i*3+2] = -100 - Math.random() * 10; }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(p, 3));
+}
+const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.3, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.55, map: dotTex, color: 0xdfe6ff, transparent: true, depthWrite: false, opacity: 0.85 }));
+scene.add(stars);
+
+// ---------- sun ----------
+const sunTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128); gr.addColorStop(0, 'rgba(255,250,235,1)'); gr.addColorStop(.18, 'rgba(255,236,190,1)'); gr.addColorStop(.26, 'rgba(255,200,120,.55)'); gr.addColorStop(1, 'rgba(255,170,90,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+sun.scale.setScalar(9); scene.add(sun);
+
+// ---------- Mount Kinabalu (silhouette from the south-east, Kundasang side) ----------
+// x in -1.6..1.6, y in 0..~0.9; Low's Peak is the high point (index LOW).
+const PROFILE = [[-2.6,-.04],[-1.6,0],[-1.25,.05],[-1,.12],[-.8,.2],[-.64,.3],[-.53,.41],[-.45,.49],[-.39,.6],[-.35,.57],[-.31,.68],[-.27,.64],[-.23,.72],
+  [-.19,.67],[-.15,.71],[-.11,.79],[-.09,.73],[-.06,.8],[-.03,.75],[.01,.78],[.05,.85],[.08,.865],[.11,.85],[.14,.78],[.18,.77],[.215,.73],
+  [.245,.83],[.27,.72],[.31,.74],[.35,.66],[.41,.62],[.49,.5],[.6,.4],[.78,.28],[.98,.18],[1.28,.08],[1.6,0],[2.6,-.04]];
+const LOW = PROFILE.findIndex(p => p[1] === .865);
+const MW = 30, MH = 17, MZ = -30, MY = -6.8; // the massif dominates; summit lands ~58% down a 16:9 screen
+const mtn = (() => {
+  const s = new THREE.Shape(); s.moveTo(PROFILE[0][0] * MW, -6);
+  PROFILE.forEach(([x, y]) => s.lineTo(x * MW, y * MH)); s.lineTo(PROFILE[PROFILE.length - 1][0] * MW, -6); s.closePath();
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({ color: 0x07060d }));
+  m.position.set(0, MY, MZ); scene.add(m); return m;
+})();
+// the gold rim light that runs down the ridges from the summit
+const rim = (() => {
+  const pts = PROFILE.slice(1, -1), pos = [], dist = [], vv = [], idx = [];
+  let acc = [0]; for (let i = 1; i < pts.length; i++) acc.push(acc[i - 1] + Math.hypot((pts[i][0] - pts[i - 1][0]) * MW, (pts[i][1] - pts[i - 1][1]) * MH));
+  const a0 = acc[LOW - 1], total = Math.max(a0, acc[acc.length - 1] - a0);
+  pts.forEach(([x, y], i) => {
+    const d = Math.abs(acc[i] - a0) / total; // 0 at Low's Peak, 1 at the far ends
+    const th = 0.28 + 0.3 * (1 - d); // the crest light is broadest at the summit
+    pos.push(x * MW, y * MH, 0.02, x * MW, y * MH - th, 0.02); dist.push(d, d); vv.push(0, 1);
+    if (i) { const b = (i - 1) * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+  });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('d', new THREE.Float32BufferAttribute(dist, 1)); g.setAttribute('v', new THREE.Float32BufferAttribute(vv, 1)); g.setIndex(idx);
+  const m = new THREE.Mesh(g, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { sweep: { value: -0.2 }, glow: { value: 0 } },
+    vertexShader: `attribute float d; attribute float v; varying float vd; varying float vv; void main(){ vd = d; vv = v; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+    fragmentShader: `uniform float sweep; uniform float glow; varying float vd; varying float vv;
+      void main(){
+        float lit = smoothstep(sweep, sweep - .12, vd);            // light has reached this point of the ridge
+        float edge = pow(1. - vv, 2.2);                              // brightest on the very crest
+        float front = exp(-pow((vd - sweep) * 14., 2.)) * .8;        // a brighter leading edge as the light travels
+        float a = (lit * (.55 + .45 * (1. - vd)) + front * step(0., sweep)) * edge * glow;
+        gl_FragColor = vec4(vec3(1., .76, .40) * a * 4.0, a);
+      }`
+  }));
+  m.position.copy(mtn.position); scene.add(m); return m;
+})();
+
+// ---------- foreground ridges + sea of clouds ----------
+function hills(z, y, amp, seed, color) {
+  const s = new THREE.Shape(), W = 120; s.moveTo(-W / 2, -20);
+  for (let i = 0; i <= 120; i++) { const x = -W / 2 + W * i / 120;
+    s.lineTo(x, y + amp * (Math.sin(x * .09 + seed) * .6 + Math.sin(x * .23 + seed * 2.1) * .3 + Math.sin(x * .51 + seed * 3.7) * .1)); }
+  s.lineTo(W / 2, -20); s.closePath();
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({ color })); m.position.z = z; scene.add(m); return m;
+}
+const hillFar = hills(-14, -0.4, 1.6, 1.3, 0x0b0912), hillNear = hills(-4, -1.5, 1.2, 4.2, 0x050409);
+const cloudTex = (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 128; const g = c.getContext('2d');
+  for (let i = 0; i < 70; i++) { const x = Math.random() * 512, y = 64 + (Math.random() - .5) * 50, r = 18 + Math.random() * 46;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.22)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; return t; })();
+const clouds = [[-22, 0.4, 0.75, 0.6], [-17, -0.2, 0.6, -0.9], [-9, -0.9, 0.45, 1.2]].map(([z, y, op, speed]) => {
+  const t = cloudTex.clone(); t.needsUpdate = true; t.repeat.set(2, 1); t.offset.x = Math.random();
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(120, 6), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, opacity: op, color: 0x3a3f66 }));
+  m.position.set(0, y, z); scene.add(m); return { m, t, speed: speed * 0.004, op };
+});
+const cloudNight = new THREE.Color(0x2a2e4c), cloudDawn = new THREE.Color(0x8a5a5c);
+
+// ---------- names as faint stars across the night sky ----------
+let nameSprites = [];
+function labelTexture(text) {
+  const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 40;
+  g.font = `italic 500 ${fs}px "Cormorant Garamond", Georgia, serif`;
+  const w = Math.min(1024, Math.ceil(g.measureText(text).width) + 20); c.width = w; c.height = fs + 16;
+  g.font = `italic 500 ${fs}px "Cormorant Garamond", Georgia, serif`; g.fillStyle = '#efe6ff'; g.textBaseline = 'middle'; g.fillText(text, 10, c.height / 2);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return { t, aspect: w / c.height };
+}
+function buildNames(op = 0) {
+  nameSprites.forEach(s => { scene.remove(s.sp); s.sp.material.map.dispose(); s.sp.material.dispose(); });
+  const list = LD.shuffle(LD.pool()).slice(0, 36);
+  nameSprites = list.map(name => {
+    const { t, aspect } = labelTexture(name.length > 30 ? name.slice(0, 29) + '…' : name);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, opacity: op }));
+    const h = 0.5 + Math.random() * 0.25; sp.scale.set(h * aspect, h, 1);
+    // scattered in the upper sky, kept clear of the summit and the title
+    let x, y; do { x = (Math.random() - .5) * 52; y = 9 + Math.random() * 13; } while (Math.abs(x) < 9 && y < 13);
+    sp.position.set(x, y, -40); scene.add(sp);
+    return { sp, base: 0.22 + Math.random() * 0.2, ph: Math.random() * 6.28, k: 1 };
+  });
+}
+
+// ---------- gold dust after the reveal (replaces confetti: slow, few, warm) ----------
+const DUST = 260, dustGeo = new THREE.BufferGeometry(), dustPos = new Float32Array(DUST * 3), dustVel = new Float32Array(DUST * 3);
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ size: 0.09, map: dotTex, color: 0xffd68a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+scene.add(dust);
+function seedDust() { for (let i = 0; i < DUST; i++) {
+  dustPos[i*3] = (Math.random() - .5) * 22; dustPos[i*3+1] = 4 + Math.random() * 10; dustPos[i*3+2] = 4 + Math.random() * 10;
+  dustVel[i*3] = (Math.random() - .5) * .12; dustVel[i*3+1] = -.08 - Math.random() * .18; dustVel[i*3+2] = (Math.random() - .5) * .05; }
+  dustGeo.attributes.position.needsUpdate = true; }
+
+// ---------- apply state each frame ----------
+const tmpC = new THREE.Color();
+function apply() {
+  const d = P.dawn;
+  sky.material.uniforms.dawn.value = d;
+  sun.position.set(PROFILE[LOW][0] * MW, MY + P.sunY, MZ - 6);
+  sun.material.opacity = THREE.MathUtils.smoothstep(d, .15, .6);
+  // the sky glow sits exactly behind the sun as seen from the camera: cast camera→sun onto the backdrop plane
+  const k = (sky.position.z - camera.position.z) / (sun.position.z - camera.position.z);
+  const gx = camera.position.x + (sun.position.x - camera.position.x) * k, gy = camera.position.y + (sun.position.y - camera.position.y) * k;
+  sky.material.uniforms.sun.value.set((gx - sky.position.x) / SKY_W + 0.5, (gy - sky.position.y) / SKY_H + 0.5);
+  stars.material.opacity = 0.85 * (1 - THREE.MathUtils.smoothstep(d, .1, .7));
+  rim.material.uniforms.sweep.value = P.sweep; rim.material.uniforms.glow.value = THREE.MathUtils.smoothstep(d, .1, .5);
+  // backlit massif warms a touch at dawn, but stays a silhouette
+  mtn.material.color.setRGB(.012 + .022 * P.mtnLight, .011 + .012 * P.mtnLight, .024 + .008 * P.mtnLight);
+  hillFar.material.color.setRGB(.018 + .016 * d, .015 + .008 * d, .03 + .004 * d);
+  tmpC.copy(cloudNight).lerp(cloudDawn, THREE.MathUtils.smoothstep(d, .2, 1)); clouds.forEach(c => c.m.material.color.copy(tmpC));
+  bloom.strength = 0.35 + 0.35 * d;
+}
+
+function resize() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.fov = camera.aspect < 1 ? 62 : 42; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', resize); resize();
+
+// ---------- frame loop on GSAP's ticker (seconds, clamped) ----------
+let t = 0, shown = false;
+const look = new THREE.Vector3();
+gsap.ticker.add((time, deltaMs) => {
+  const dt = Math.min(deltaMs / 1000, 0.05); t += dt;
+  const still = LD.reduced ? 0 : 1;
+  // a constant, gentle breathing drift that never stops (so no hand-off jolts); the draw adds a dolly on top
+  camera.position.set(CAM.x + Math.sin(t * .11) * .6 * still, CAM.y + Math.sin(t * .07) * .25 * still + P.dolly * 0.9, CAM.z - P.dolly * 5);
+  look.copy(LOOK).y += P.dolly * 0.8; camera.lookAt(look);
+  for (const c of clouds) c.t.offset.x += c.speed * dt * still;
+  for (const n of nameSprites) n.sp.material.opacity = n.base * n.k * (0.75 + 0.25 * Math.sin(t * 1.3 + n.ph) * still);
+  if (dust.material.opacity > 0) {
+    for (let i = 0; i < DUST; i++) { dustPos[i*3] += dustVel[i*3] * dt; dustPos[i*3+1] += dustVel[i*3+1] * dt; dustPos[i*3+2] += dustVel[i*3+2] * dt; }
+    dustGeo.attributes.position.needsUpdate = true;
+  }
+  apply();
+  composer.render(dt);
+  if (!shown) { shown = true; gsap.to('#loading', { autoAlpha: 0, duration: .8, onComplete: () => { document.getElementById('loading').hidden = true; } }); }
+});
+if (location.hash === '#debug') window.__kina = { P, camera, gsap, get tl() { return tl; }, render: () => { apply(); composer.render(0); } };
+
+// ---------- sound: a slow string-like swell and a low bell (Web Audio, respects the Sound toggle) ----------
+function swell(dur) {
+  const ac = LD.audio(); if (!ac || !LD.snd.on) return;
+  const t0 = ac.currentTime, out = ac.createGain(); out.gain.value = 0.9; out.connect(ac.destination);
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.4;
+  lp.frequency.setValueAtTime(220, t0); lp.frequency.exponentialRampToValueAtTime(1600, t0 + dur * 0.8); lp.connect(out);
+  [73.42, 110, 146.83, 220, 277.18, 329.63].forEach((f, i) => [-5, 5].forEach(cents => {
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = cents;
+    const v = 0.016 / (1 + i * 0.35), start = t0 + (i > 3 ? dur * 0.35 : 0);
+    g.gain.setValueAtTime(0.0001, start); g.gain.exponentialRampToValueAtTime(v, start + dur * 0.55);
+    g.gain.setValueAtTime(v, t0 + dur); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 3.5);
+    o.connect(g).connect(lp); o.start(start); o.stop(t0 + dur + 3.6);
+  }));
+}
+function bell() { [[293.66, 3.8, .05], [587.3, 2.6, .022], [810, 1.8, .012], [1585, 1.1, .006]].forEach(([f, d, v]) => LD.snd.tone(f, d, v, 'sine')); }
+
+// ---------- winner reveal ----------
+const winEl = document.getElementById('win'), boxEl = winEl.querySelector('.box'), nameEl = document.getElementById('winName'), ruleEl = document.getElementById('rule');
+const lblEl = winEl.querySelector('.lbl'), prizeEl = winEl.querySelector('.prize');
+let split = null, tl = null;
+
+LD.stage({
+  accent: '#e3c27a', drawingHint: 'The sky begins to lighten…',
+  draw(winner) {
+    if (!nameSprites.length) buildNames(0);
+    gsap.killTweensOf(nameSprites.map(n => n));
+    // set the name now (hidden) so it can be fitted and split into letters
+    if (split) { split.revert(); split = null; }
+    nameEl.textContent = winner;
+    gsap.set(winEl, { autoAlpha: 1 }); gsap.set([lblEl, prizeEl, nameEl], { autoAlpha: 0 }); gsap.set(ruleEl, { scaleX: 0 });
+    LD.fitText(nameEl, { max: Math.min(124, innerWidth * 0.085), min: 22 });
+    split = new SplitText(nameEl, { type: 'words,chars', wordsClass: 'wd', charsClass: 'ch' });
+    gsap.set(nameEl, { autoAlpha: 1 }); gsap.set(split.chars, { autoAlpha: 0, yPercent: 38, scale: 0.94 });
+
+    swell(9);
+    tl = gsap.timeline();
+    // 0–3 s: night deepens into pre-dawn; the names fade out one by one; the camera starts a slow dolly
+    tl.to(nameSprites, { k: 0, duration: 0.9, ease: 'sine.inOut', stagger: { each: 2.4 / Math.max(1, nameSprites.length), from: 'random' } }, 0)
+      .to(P, { dolly: 1, duration: 10, ease: 'sine.inOut' }, 0)
+      // one continuous brightening: slow pre-dawn, fastest while the light runs down the ridges, settling into sunrise
+      .to(P, { dawn: 0.85, duration: 8.4, ease: 'sine.inOut' }, 0.2)
+    // 3–7 s: the first ray touches Low's Peak and the light runs down the ridges; the sun climbs behind the summit
+      .to(P, { sweep: 1.15, duration: 4.2, ease: 'power1.inOut' }, 3.0)
+      .to(P, { sunY: MH * 0.865 + 1.1, duration: 6.4, ease: 'sine.inOut' }, 2.6)
+      .to(P, { mtnLight: 1, duration: 4, ease: 'sine.inOut' }, 4)
+    // 7–10 s: the sun clears the summit; the name is written across the sky in gold leaf
+      .to(lblEl, { autoAlpha: 1, duration: 1.0, ease: 'sine.out' }, 6.6)
+      .to(split.chars, { autoAlpha: 1, yPercent: 0, scale: 1, duration: 0.9, ease: 'back.out(1.5)', stagger: { amount: Math.min(1.6, 0.045 * split.chars.length) } }, 7.0)
+      .add(bell, 7.0)
+      .to(ruleEl, { scaleX: 1, duration: 1.2, ease: 'power2.out' }, 8.0)
+      .to(prizeEl, { autoAlpha: 1, duration: 0.9, ease: 'sine.out' }, 8.3)
+      .add(() => { if (!LD.reduced) { seedDust(); gsap.fromTo(dust.material, { opacity: 0 }, { opacity: 0.85, duration: 1.5, ease: 'sine.out' }); } }, 7.6);
+    if (LD.reduced) tl.progress(1);
+    return tl.then(() => {});
+  },
+  reset() {
+    tl = gsap.timeline();
+    tl.to(winEl, { autoAlpha: 0, duration: 0.6, ease: 'power1.out' }, 0)
+      .to(dust.material, { opacity: 0, duration: 1.2, ease: 'sine.inOut' }, 0)
+      .to(P, { dawn: 0, mtnLight: 0, duration: 2.6, ease: 'sine.inOut' }, 0.2)
+      .to(P, { sunY: -3, duration: 2.6, ease: 'sine.inOut' }, 0.2)
+      .to(P, { sweep: -0.2, duration: 1.8, ease: 'sine.inOut' }, 0.2)
+      .to(P, { dolly: 0, duration: 2.8, ease: 'sine.inOut' }, 0)
+      .add(() => {
+        if (split) { split.revert(); split = null; }
+        buildNames(0); nameSprites.forEach(n => n.k = 0);
+        gsap.to(nameSprites, { k: 1, duration: 1.2, ease: 'sine.out', stagger: { amount: 1.2, from: 'random' } });
+      }, 2.2);
+    if (LD.reduced) tl.progress(1);
+    return tl.then(() => {});
+  }
+});
+
+Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise(r => setTimeout(r, 2500))]).then(() => {
+  if (nameSprites.length || P.dawn > 0) return;
+  buildNames(0); nameSprites.forEach(n => n.k = 0);
+  gsap.to(nameSprites, { k: 1, duration: 1.4, ease: 'sine.out', stagger: { amount: 1.4, from: 'random' } });
+});
+</script>
+</body>
+</html>
