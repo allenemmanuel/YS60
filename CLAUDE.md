@@ -58,6 +58,18 @@ Testing tip: the in-app browser pane throttles or pauses requestAnimationFrame w
 timeline and seeking it in fixed steps (see `#debug`), and restore `ld-studio-v1` in localStorage after test draws.
 Gotcha: Three's `curve.getPoint()` is not arc-length parameterised — use `getPointAt()` for camera flights or speed jumps at segment joins.
 
+## Live draws (staff sign-in, added 2026-11-22)
+- **Demo mode** (signed out, the default): draws use the local names list in localStorage, as before. Nothing is saved to the event.
+- **Live mode** (a staff account signs in on the hub): `core.js` reads `events/{EVENT}` in the YS60 database (`guests`, `prizes`, `winners`, `winnerByGuest`, `settings`). Every draw is one atomic multi-path update: winner, `winnerByGuest`, `public/winners`, and `log`. The rules reject a second win for the same prize or guest, and `liveDraw()` retries. It is the same logic as `app/src/lib/draw.ts`.
+  - The winner is **shown only after the server accepts the claim**. The stage shows "Saving the draw…" first.
+  - A save that times out (15 s) says **do not draw again yet**. Check the winners in the event app first.
+  - The hub adds names (`LD.live.addNames`, skips duplicates, never removes) and prizes (`LD.live.addPrize`, appended in draw order). Removing guests and prizes stays in the event app.
+- **Event selection:** `EVENT` is `ys60` by default. `?event=ys60-test` on any page stores the choice in localStorage (`ld-event`) for rehearsals. Use `?event=ys60` to switch back. The hub shows the event id.
+- **Designs:** 18 designs use `LD.stage()`, so they work in both modes. Board, drum, packet and reel run their own draw flow, so `LD.demoOnly()` blocks their draw button in live mode (`#draw`, `#spin`).
+- **Firebase** is loaded from the gstatic CDN (`firebasejs/13.0.0`, same major as `app/`). The config is copied into `core.js` (public web config). Live mode needs internet, but demo mode works offline.
+- **Rules:** no rules change is needed. Staff can already write `guests`, `prizes`, `winners`, `winnerByGuest`, `public` and `log`.
+- **Testing:** `py -m playwright` with the hub signed in on `?event=ys60-test`. Do not test against `ys60` (the real event).
+
 ## Animation libraries / skills
 - Three.js r160 for 3D designs.
 - GSAP is 100% free incl. SplitText, MorphSVG, CustomEase, ScrambleText. Official agent skills:
