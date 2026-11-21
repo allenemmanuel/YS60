@@ -282,7 +282,16 @@ firebase deploy --only hosting --project ys60-d283a
 - Added a **Concept Page** button to the hub (`index.html`, after Draw) that opens `studio/index.html`.
 - `studio/` is a copy of the Lucky Draw Studio runtime (`core.js`, `index.html`, `designs/`, `vendor/`): 22 working draw designs. It is separate from the YS60 draw data. Its names and winners are stored in the browser's localStorage, not in the YS60 database.
 - Checked locally: the button shows on the hub, the studio hub lists 22 designs, and a design opens with no console errors. Not deployed, not committed.
-- **Next:** decide which design (if any) becomes the real draw stage, and whether the studio stays as a concept page or is removed before the event.
+- Committed locally as `5846a6b` (not pushed). **Not deployed:** `firebase login` is `ysictd@gmail.com`, which cannot access `ys60-d283a` ("Failed to get Firebase project"). Fix the login (or add that account as an owner in the console), then run `firebase deploy --only hosting --project ys60-d283a`.
+- Studio storage is separate from the YS60 database (localStorage, per browser). Decide whether the studio should run real draws, which would mean connecting it to `events/` with staff sign-in.
+- **Next:** deploy once the Firebase account is fixed; decide which design (if any) becomes the real draw stage, and whether the studio stays as a concept page or is removed before the event.
+
+### 2026-11-22 (desktop PC)
+- **Event date:** January 2027. A **showcase is requested next week**, so the studio is the priority.
+- **Firebase login fixed:** `firebase login:list` now shows `allenemmanuel07@gmail.com`, which owns `ys60-d283a`. (`firebase login --reauth` printed a sign-in URL and then hit a libuv assertion; the account was active afterwards.)
+- **Lucky Draw Studio** (`C:\Users\Allen\Desktop\klaude\lucky-draw-studio`, not part of this repo) is now a git repo. Baseline commit `b6eaa29` has designs 1–22 including the uncommitted 17–22 fixes. Commit `1be9366` adds designs 17–22 to its `CLAUDE.md` table.
+- **Decided:** the studio runs **real draws**, connected to `events/ys60` with staff sign-in. Plan: read names from `guests`, write the winner through the same atomic claim as `drawPrize()` (`app/src/lib/draw.ts`), and log to `log`. Rehearse on `events/ys60-test` first. A database rules change still needs approval before deploying.
+- Pushing `5846a6b` and deploying the studio to hosting (see the lines below).
 
 ---
 
