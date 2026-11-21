@@ -114,7 +114,7 @@ const $ = id => document.getElementById(id);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------- names ----------
-const LS = LD.load();
+const LS = LD.load(); LD.demoOnly();
 let names = LS.names, winners = LS.winners, removeWinners = LS.removeWinners, soundOn = LS.soundOn, musicOn = LS.musicOn;
 const persist = () => LD.save({ names, winners, removeWinners, soundOn, musicOn });
 const drawPool = () => removeWinners ? names.filter(n => !winners.includes(n)) : names.slice();

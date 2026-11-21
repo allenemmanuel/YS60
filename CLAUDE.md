@@ -291,7 +291,11 @@ firebase deploy --only hosting --project ys60-d283a
 - **Firebase login fixed:** `firebase login:list` now shows `allenemmanuel07@gmail.com`, which owns `ys60-d283a`. (`firebase login --reauth` printed a sign-in URL and then hit a libuv assertion; the account was active afterwards.)
 - **Lucky Draw Studio** (`C:\Users\Allen\Desktop\klaude\lucky-draw-studio`, not part of this repo) is now a git repo. Baseline commit `b6eaa29` has designs 1–22 including the uncommitted 17–22 fixes. Commit `1be9366` adds designs 17–22 to its `CLAUDE.md` table.
 - **Decided:** the studio runs **real draws**, connected to `events/ys60` with staff sign-in. Plan: read names from `guests`, write the winner through the same atomic claim as `drawPrize()` (`app/src/lib/draw.ts`), and log to `log`. Rehearse on `events/ys60-test` first. A database rules change still needs approval before deploying.
-- Pushing `5846a6b` and deploying the studio to hosting (see the lines below).
+- Pushed `main` to GitHub (`969c728..3ce7b50`), which includes `5846a6b`.
+- The live deploy of the studio was run by the user (the agent's own deploy attempt was blocked by the permission check).
+- **Real draws built** in the studio (`lucky-draw-studio` commit `de5946c`, copied to `studio/`). Staff sign-in on the hub draws the next prize from `events/{event}` with the same atomic claim as the event app. Demo mode is unchanged. Board, drum, packet and reel are demo-only in live mode. Details are in the studio's CLAUDE.md, "Live draws".
+- **Tested:** demo mode in headless Chromium, with no console errors. **Not yet tested:** live mode, which needs a staff test account. Rehearse on `?event=ys60-test` first; don't use `ys60` for demo data.
+- **Next:** rehearsal on `ys60-test`, then redeploy `studio/` (`firebase deploy --only hosting --project ys60-d283a`). No rules change is needed.
 
 ---
 

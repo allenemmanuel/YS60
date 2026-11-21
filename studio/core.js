@@ -68,7 +68,8 @@
     Object.assign(s, part);
     store(s); return s;
   }
-  const pool = (s = load()) => s.removeWinners ? s.names.filter(n => !s.winners.includes(n)) : s.names.slice();
+  // In live mode the pool is the eligible guests in the event database; otherwise the demo names.
+  const pool = (s = load()) => liveOn() ? liveEligible().map(g => g.name) : (s.removeWinners ? s.names.filter(n => !s.winners.includes(n)) : s.names.slice());
 
   // fair pick: crypto randomness, no modulo bias
   function randInt(n) {
@@ -192,8 +193,7 @@
 
   // ---------- page chrome: back link, prize label, keyboard / clicker ----------
   function chrome({ primary = [], accent = '#e8c26a' } = {}) {
-    const s = load();
-    document.querySelectorAll('[data-ld-prize]').forEach(el => { if (s.prize) el.textContent = s.prize; });
+    prizeLabels(); onLive(prizeLabels);
     const a = document.createElement('a');
     a.href = '../index.html'; a.className = 'ld-back'; a.textContent = '← Designs'; a.title = 'Back to all designs (H)';
     const st = document.createElement('style');
@@ -218,9 +218,9 @@
   const busy = on => document.body.classList.toggle('ld-busy', !!on);
 
   // Log one draw (always logged, even when winners stay in the pool)
-  function record(name) {
+  function record(name, prize) {
     const s = load();
-    s.log.push({ name, design, prize: s.prize, at: Date.now() });
+    s.log.push({ name, design, prize: prize !== undefined ? prize : s.prize, at: Date.now() });
     if (design) s.used[design] = (s.used[design] || 0) + 1;
     if (!s.winners.includes(name)) s.winners.push(name);
     store(s); return s;
@@ -233,32 +233,218 @@
     const drawBtn = $('draw'), resetBtn = $('reset'), meta = $('meta'), hint = $('hint'), soundBtn = $('soundBtn'), result = $('result');
     let state = 'idle';
     function ui() {
-      const s = load(), left = pool(s).length;
-      meta.textContent = `Draw ${String(s.log.length + (state === 'won' ? 0 : 1)).padStart(2, '0')} · ${left === 1 ? '1 name' : left + ' names'} in the draw`;
+      const s = load(), left = pool(s).length, ls = liveState(), isLive = ls === 'on';
+      meta.textContent = `Draw ${String(s.log.length + (state === 'won' ? 0 : 1)).padStart(2, '0')} · ${left === 1 ? '1 name' : left + ' names'} in the draw${isLive ? ' · live' : ''}`;
       soundBtn.textContent = s.soundOn ? 'Sound on' : 'Sound off'; soundBtn.setAttribute('aria-pressed', String(s.soundOn));
-      if (state === 'idle') { drawBtn.disabled = !left; hint.innerHTML = left ? idleHint : 'No names left. Add names on the <a href="../index.html">designs page</a>.'; }
+      if (state !== 'idle') return;
+      if (ls === 'checking' || ls === 'connecting') { drawBtn.disabled = true; hint.textContent = 'Connecting to the event…'; }
+      else if (ls === 'error' || ls === 'not-staff') { drawBtn.disabled = true; hint.textContent = liveMessage(); }
+      else if (isLive && !liveNextPrize()) { drawBtn.disabled = true; hint.textContent = 'No prize left to draw. Add a prize on the designs page.'; }
+      else { drawBtn.disabled = !left; hint.innerHTML = left ? idleHint : (isLive ? 'No eligible names left to draw.' : 'No names left. Add names on the <a href="../index.html">designs page</a>.'); }
     }
-    drawBtn.addEventListener('click', async () => {
+    // One draw. In live mode the winner is saved to the event first, and is shown only after the server accepts it.
+    async function runDraw() {
       const p = pool(); if (state !== 'idle' || !p.length) return;
-      audio(); state = 'busy'; busy(true); drawBtn.disabled = true; hint.textContent = drawingHint; result.textContent = '';
-      const w = pick(p);
+      audio(); state = 'busy'; busy(true); drawBtn.disabled = true; result.textContent = '';
+      let w, prizeName = currentPrize();
+      if (liveOn()) {
+        hint.textContent = 'Saving the draw…';
+        try { const claim = await liveDraw(); w = claim.name; prizeName = claim.prize.name; }
+        catch (e) {
+          console.error(e); state = 'idle'; busy(false); ui();
+          hint.textContent = e.message || 'The draw was not saved.';
+          return;
+        }
+      } else w = pick(p);
+      hint.textContent = drawingHint;
       try { await draw(w); } catch (e) { console.error(e); }
-      record(w); result.textContent = 'The winner is ' + w;
+      record(w, prizeName); result.textContent = 'The winner is ' + w;
       state = 'won'; busy(false); drawBtn.hidden = true; resetBtn.hidden = false;
       hint.textContent = 'Press New draw for the next prize'; ui();
-    });
+    }
+    drawBtn.addEventListener('click', runDraw);
     resetBtn.addEventListener('click', async () => {
       if (state !== 'won') return; state = 'busy'; resetBtn.hidden = true;
       try { if (reset) await reset(); } catch (e) { console.error(e); }
-      // pick up a prize changed on the designs page in another tab
-      const pz = load().prize; document.querySelectorAll('[data-ld-prize]').forEach(el => { el.textContent = pz || el.dataset.ldDefault; });
+      prizeLabels(); // pick up a prize changed on the designs page in another tab
       state = 'idle'; drawBtn.hidden = false; ui();
     });
+    onLive(ui);
     soundBtn.addEventListener('click', () => { audio(); snd.set(!load().soundOn); ui(); });
     document.querySelectorAll('[data-ld-prize]').forEach(el => { el.dataset.ldDefault = el.textContent; });
     chrome({ primary: ['draw', 'reset'], accent }); ui();
     return { ui, get state() { return state; } };
   }
 
-  window.LD = { KEY, SAMPLE, DESIGNS, design, reduced, load, save, pool, randInt, pick, shuffle, ease, tween, sleep, audio, snd, confetti, fitText, chrome, busy, record, stage };
+  // ---------- live draws: staff sign-in + the event database ----------
+  // Only when a staff account is signed in. Same rules and write paths as the event app (app/src/lib/draw.ts):
+  // each winner is one atomic update, and the rules reject a second win for the same prize or guest.
+  const EVENT = (() => {
+    const ok = v => typeof v === 'string' && /^[a-z0-9-]{1,40}$/.test(v);
+    let q = null; try { q = new URLSearchParams(location.search).get('event'); } catch (e) {}
+    let id = q; try { if (ok(q)) localStorage.setItem('ld-event', q); else id = localStorage.getItem('ld-event'); } catch (e) {}
+    return ok(id) ? id : 'ys60';
+  })();
+  const FB = 'https://www.gstatic.com/firebasejs/13.0.0/';
+  // Public web config (same project as app/src/lib/firebase.ts). Access is controlled by the database rules.
+  const FB_CONFIG = {
+    apiKey: 'AIzaSyCEJbD5Md0ZX2ADT4nViQNxKn3t5d18ttA', authDomain: 'ys60-d283a.firebaseapp.com',
+    databaseURL: 'https://ys60-d283a-default-rtdb.firebaseio.com', projectId: 'ys60-d283a',
+    storageBucket: 'ys60-d283a.firebasestorage.app', messagingSenderId: '245526155541',
+    appId: '1:245526155541:web:bac59abdb73656470f191c'
+  };
+  const LIVE_KEYS = ['guests', 'prizes', 'winners', 'winnerByGuest', 'settings'];
+  const FIELD = { guests: 'guests', prizes: 'prizes', winners: 'winners', winnerByGuest: 'wbg', settings: 'settings' };
+  const live = { fb: null, authed: false, user: null, isStaff: false, error: '', guests: {}, prizes: {}, winners: {}, wbg: {}, settings: {} };
+  const liveReady = new Set(), liveUnsub = [], liveListeners = [];
+  const onLive = fn => liveListeners.push(fn);
+  function notifyLive() { liveListeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); }
+  function liveState() {
+    if (!live.authed) return 'checking';
+    if (!live.user) return 'off';
+    if (live.error) return 'error';
+    if (!live.isStaff) return 'not-staff';
+    return liveReady.size === LIVE_KEYS.length ? 'on' : 'connecting';
+  }
+  const liveOn = () => liveState() === 'on';
+  const liveMessage = () => live.error || (liveState() === 'not-staff' ? 'This account is not a staff account. Sign in with a staff account.' : '');
+  function liveEligible() {
+    const needCheckIn = live.settings.entryMode === 'checkedIn';
+    return Object.entries(live.guests).filter(([id, g]) => g && !live.wbg[id] && (!needCheckIn || g.checkedIn)).map(([id, g]) => ({ id, name: g.name }));
+  }
+  const livePrizes = () => Object.entries(live.prizes).map(([id, p]) => ({ id, ...p })).sort((a, b) => a.order - b.order);
+  const liveNextPrize = () => livePrizes().find(p => live.winners[p.id]?.status !== 'active') || null;
+  const currentPrize = () => liveOn() ? (liveNextPrize()?.name || '') : load().prize;
+  function prizeLabels() {
+    const pz = currentPrize();
+    document.querySelectorAll('[data-ld-prize]').forEach(el => { if (!el.dataset.ldDefault) el.dataset.ldDefault = el.textContent; el.textContent = pz || el.dataset.ldDefault; });
+  }
+
+  function detachLive() {
+    liveUnsub.splice(0).forEach(off => off());
+    liveReady.clear();
+    Object.assign(live, { guests: {}, prizes: {}, winners: {}, wbg: {}, settings: {} });
+  }
+  function attachLive() {
+    const { D, db } = live.fb;
+    live.error = '';
+    for (const key of LIVE_KEYS) {
+      liveUnsub.push(D.onValue(D.ref(db, `events/${EVENT}/${key}`), snap => {
+        live[FIELD[key]] = snap.val() || {}; liveReady.add(key); notifyLive();
+      }, () => { live.error = 'Lost the connection to the event database.'; notifyLive(); }));
+    }
+  }
+  const liveInit = (async () => {
+    try {
+      const [authMod, dbMod, appMod] = await Promise.all([import(FB + 'firebase-auth.js'), import(FB + 'firebase-database.js'), import(FB + 'firebase-app.js')]);
+      const app = appMod.initializeApp(FB_CONFIG, 'ld-studio');
+      live.fb = { authMod, D: dbMod, db: dbMod.getDatabase(app), auth: authMod.getAuth(app) };
+      authMod.onAuthStateChanged(live.fb.auth, async user => {
+        detachLive(); live.user = user; live.isStaff = false; live.error = '';
+        if (user) {
+          try {
+            const snap = await dbMod.get(dbMod.ref(live.fb.db, `staff/${user.uid}`));
+            if (live.user !== user) return; // signed out or switched while checking
+            live.isStaff = snap.val() === true;
+          } catch (e) { if (live.user === user) live.error = 'Could not check staff access. Check the internet connection.'; }
+          if (live.user === user && live.isStaff) attachLive();
+        }
+        live.authed = true; notifyLive();
+      });
+    } catch (e) {
+      console.error(e); live.authed = true; live.error = 'Could not reach Firebase. Check the internet connection.'; notifyLive();
+    }
+  })();
+  async function liveSignIn(email, password) {
+    await liveInit;
+    if (!live.fb) throw Object.assign(new Error('Not connected.'), { code: 'auth/network-request-failed' });
+    return live.fb.authMod.signInWithEmailAndPassword(live.fb.auth, email.trim(), password);
+  }
+  async function liveSignOut() { await liveInit; if (live.fb) await live.fb.authMod.signOut(live.fb.auth); }
+
+  class LiveDrawError extends Error {}
+  function withTimeout(promise, ms = 15000) {
+    let timer;
+    const limit = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new LiveDrawError('The draw could not be confirmed by the server. Do not draw again yet: check the winners in the event app first.')), ms);
+    });
+    return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+  }
+  // Draw the next prize without a winner. Reads fresh data, claims in one atomic update, and retries if the rules reject it.
+  async function liveDraw() {
+    const { D, db } = live.fb, E = `events/${EVENT}`, by = live.user.email || live.user.uid;
+    const read = path => D.get(D.ref(db, `${E}/${path}`)).then(snap => snap.val() || {});
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const [prizes, winners, guests, wbg, settings] = await Promise.all(['prizes', 'winners', 'guests', 'winnerByGuest', 'settings'].map(read));
+      const next = Object.entries(prizes).map(([id, p]) => ({ id, ...p })).sort((a, b) => a.order - b.order).find(p => winners[p.id]?.status !== 'active');
+      if (!next) throw new LiveDrawError('No prize is left to draw. Add a prize first.');
+      const needCheckIn = settings.entryMode === 'checkedIn';
+      const eligible = Object.keys(guests).filter(id => guests[id] && !wbg[id] && (!needCheckIn || guests[id].checkedIn));
+      if (!eligible.length) throw new LiveDrawError('There are no eligible names left to draw.');
+      const guestId = eligible[randInt(eligible.length)], name = guests[guestId].name;
+      const logKey = D.push(D.ref(db, `${E}/log`)).key;
+      const paths = {
+        [`${E}/winners/${next.id}`]: { guestId, name, drawnAt: D.serverTimestamp(), by, status: 'active' },
+        [`${E}/winnerByGuest/${guestId}`]: next.id,
+        [`${E}/public/winners/${next.id}`]: { name, prizeName: next.name, ...(next.counter ? { counter: next.counter } : {}), order: next.order, drawnAt: D.serverTimestamp() },
+        [`${E}/log/${logKey}`]: { type: 'draw', by, prizeId: next.id, guestId, detail: name, at: D.serverTimestamp() }
+      };
+      try {
+        await withTimeout(D.update(D.ref(db), paths));
+        return { name, guestId, prize: next };
+      } catch (err) {
+        if (err instanceof LiveDrawError || !/permission.denied/i.test(String(err && err.message))) throw err;
+        // someone else claimed this prize or guest first: read again and retry
+      }
+    }
+    throw new LiveDrawError('The draw kept colliding with another draw. Please try again.');
+  }
+  // Add names to the event (never removes anything). Names already in the event are skipped.
+  async function liveAddNames(list) {
+    const { D, db } = live.fb, E = `events/${EVENT}`, by = live.user.email || live.user.uid;
+    const have = new Set(Object.values(live.guests).filter(Boolean).map(g => String(g.name).toLowerCase()));
+    const fresh = [...new Set(list.map(n => n.replace(/\s+/g, ' ').trim()).filter(n => n && n.length <= 120))].filter(n => !have.has(n.toLowerCase()));
+    if (!fresh.length) return 0;
+    const now = Date.now(), paths = {};
+    for (const name of fresh) paths[`${E}/guests/${D.push(D.ref(db, `${E}/guests`)).key}`] = { name, source: 'paste', checkedIn: false, createdAt: now };
+    paths[`${E}/log/${D.push(D.ref(db, `${E}/log`)).key}`] = { type: 'import', by, detail: `${fresh.length} names added from the studio`, at: D.serverTimestamp() };
+    await D.update(D.ref(db), paths);
+    return fresh.length;
+  }
+  // Add a prize at the end of the draw order.
+  async function liveAddPrize(name) {
+    const { D, db } = live.fb, E = `events/${EVENT}`, by = live.user.email || live.user.uid;
+    const text = name.replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!text) return;
+    const order = livePrizes().reduce((m, p) => Math.max(m, p.order), 0) + 1;
+    const id = D.push(D.ref(db, `${E}/prizes`)).key;
+    await D.update(D.ref(db), {
+      [`${E}/prizes/${id}`]: { order, name: text },
+      [`${E}/log/${D.push(D.ref(db, `${E}/log`)).key}`]: { type: 'prize-add', by, prizeId: id, detail: text, at: D.serverTimestamp() }
+    });
+  }
+
+  // Designs with their own draw flow (not LD.stage) are demo-only: block their draw while live draws are on.
+  function demoOnly() {
+    const guard = e => {
+      if (!liveOn()) return;
+      if (e.type === 'click' && !(e.target.closest && e.target.closest('#draw, #spin'))) return;
+      if (e.type === 'keydown' && ![' ', 'Enter', 'PageDown', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+    };
+    addEventListener('click', guard, true); addEventListener('keydown', guard, true);
+    let bar = null;
+    onLive(() => {
+      if (!liveOn()) { if (bar) bar.remove(); bar = null; return; }
+      if (bar) return;
+      bar = document.createElement('div'); bar.setAttribute('role', 'status');
+      Object.assign(bar.style, { position: 'fixed', left: '50%', top: '14px', transform: 'translateX(-50%)', zIndex: 50, padding: '10px 16px', borderRadius: '10px', background: '#7a1220', color: '#fff', font: '600 14px/1.3 system-ui,sans-serif' });
+      bar.textContent = 'Live draws are on. This design is demo-only: go back and choose another design for a real draw.';
+      document.body.appendChild(bar);
+    });
+  }
+
+  window.LD = { KEY, SAMPLE, DESIGNS, design, reduced, load, save, pool, randInt, pick, shuffle, ease, tween, sleep, audio, snd, confetti, fitText, chrome, busy, record, stage, demoOnly,
+    live: { event: EVENT, onChange: onLive, state: liveState, message: liveMessage, user: () => live.user, prizes: livePrizes, nextPrize: liveNextPrize, winners: () => live.winners,
+      signIn: liveSignIn, signOut: liveSignOut, addNames: liveAddNames, addPrize: liveAddPrize } };
 })();

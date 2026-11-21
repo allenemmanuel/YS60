@@ -137,6 +137,14 @@ td.small { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .p-scratch .t::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, #c9a24c, #f3dc9a 40%, #b38532 70%, #e8cb7c); clip-path: polygon(0 0, 100% 0, 100% 100%, 62% 100%, 70% 60%, 40% 52%, 30% 100%, 0 100%); }
 .p-lanterns { background: linear-gradient(180deg, #0b1030 0%, #2a1c4a 60%, #6b3a3a 100%); }
 .p-lanterns i { position: absolute; width: 7%; aspect-ratio: 3/4; border-radius: 40% 40% 30% 30%; background: radial-gradient(circle at 50% 70%, #fff3c2, #ffb347 45%, #d0602a); box-shadow: 0 0 16px rgba(255,170,70,.7); }
+.live { margin: 0 0 22px; padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(232,196,120,.28); }
+.live[data-state="on"] { border-color: rgba(232,196,120,.85); }
+.live .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.live input { padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(0,0,0,.25); color: inherit; font: inherit; min-width: 220px; }
+.live button { padding: 9px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.live button.primary { background: #e8c26a; color: #1a1408; border-color: transparent; font-weight: 700; }
+.live .msg { font-size: 14px; opacity: .85; }
+.live ol { margin: 6px 0 0; padding-left: 22px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -154,6 +162,24 @@ td.small { color: var(--muted); font-size: 13px; white-space: nowrap; }
     <div class="stat"><b id="left">0</b><span>names left</span></div>
     <div class="stat"><b id="drawn">0</b><span>drawn</span></div>
     <button id="surprise" class="primary" type="button">Surprise me</button>
+  </section>
+
+  <section class="live" id="live" aria-label="Live draws" data-state="off">
+    <div id="liveOut">
+      <form id="signin" class="row" autocomplete="on">
+        <input id="email" type="email" placeholder="Staff email" autocomplete="username" required>
+        <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="primary" type="submit">Sign in for live draws</button>
+      </form>
+    </div>
+    <div id="liveIn" hidden>
+      <div class="row"><b>Live draws</b> · event <code id="evName"></code> · signed in as <span id="who"></span> <button id="signout" type="button">Sign out</button></div>
+      <div class="row"><div class="prizeAdd" style="display:flex;gap:8px;flex-wrap:wrap"><input id="newPrize" type="text" placeholder="Add a prize (in draw order)" autocomplete="off"><button id="addPrize" type="button">Add prize</button></div></div>
+      <ol id="prizeList"></ol>
+    </div>
+    <p class="msg" id="liveStatus" role="status"></p>
+    <p class="msg" id="signinMsg" role="status"></p>
+    <p class="msg" id="liveMsg" role="status"></p>
   </section>
 
   <section aria-labelledby="dh">
@@ -221,7 +247,7 @@ function render() {
   s = LD.load();
   const left = LD.pool(s).length;
   $('left').textContent = left; $('drawn').textContent = s.log.length;
-  if (document.activeElement !== $('prize')) $('prize').value = s.prize;
+  if (!$('prize').disabled && document.activeElement !== $('prize')) $('prize').value = s.prize;
   $('removeWinners').checked = s.removeWinners;
   const lastDesign = s.log.length ? s.log[s.log.length - 1].design : '';
   $('grid').replaceChildren(...LD.DESIGNS.map((d, i) => {
@@ -243,11 +269,71 @@ render();
 const flash = id => { $(id).classList.add('show'); setTimeout(() => $(id).classList.remove('show'), 1400); };
 $('prize').addEventListener('input', e => LD.save({ prize: e.target.value.trim() }));
 $('removeWinners').addEventListener('change', e => { LD.save({ removeWinners: e.target.checked }); render(); });
-$('saveNames').addEventListener('click', () => {
+$('saveNames').addEventListener('click', async () => {
+  if (LD.live.state() === 'on') {
+    const btn = $('saveNames'); btn.disabled = true;
+    try {
+      const n = await LD.live.addNames($('names').value.split('\n'));
+      $('names').value = '';
+      $('liveMsg').textContent = n ? `${n} name${n === 1 ? '' : 's'} added to the event.` : 'No new names: they were all already in the event.';
+    } catch (err) { $('liveMsg').textContent = 'Could not save the names: ' + (err.message || err); }
+    finally { btn.disabled = false; }
+    return;
+  }
   const names = [...new Set($('names').value.split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean))];
   LD.save({ names }); $('names').value = names.join('\n'); render(); flash('savedMsg');
 });
 $('sample').addEventListener('click', () => { $('names').value = LD.SAMPLE.join('\n'); });
+
+// ---- live draws: staff sign-in (see core.js) ----
+const LIVE_TEXT = {
+  checking: 'Checking sign-in…',
+  off: 'Demo mode: draws use the demo names and nothing is saved to the event. Sign in to draw for real.',
+  connecting: 'Connecting to the event…',
+  on: 'LIVE: every draw is saved to the event before its winner is shown.'
+};
+const AUTH_TEXT = {
+  'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.',
+  'auth/user-not-found': 'Wrong email or password.', 'auth/invalid-email': 'Enter a valid email address.',
+  'auth/too-many-requests': 'Too many attempts. Wait a minute and try again.', 'auth/network-request-failed': 'No internet connection.'
+};
+let liveMode = null;
+function renderLive() {
+  const st = LD.live.state(), user = LD.live.user(), isLive = st === 'on';
+  $('live').dataset.state = st;
+  $('liveOut').hidden = !!user; $('liveIn').hidden = !user;
+  if (user) $('who').textContent = user.email || 'staff account';
+  $('evName').textContent = LD.live.event;
+  $('liveStatus').textContent = st === 'off' ? (LD.live.message() || LIVE_TEXT.off) : (LIVE_TEXT[st] || LD.live.message());
+  $('prize').disabled = isLive;
+  if (isLive) { const nx = LD.live.nextPrize(); $('prize').value = nx ? nx.name : 'No prize left to draw'; }
+  $('removeWinners').closest('label').hidden = isLive;
+  $('sample').hidden = isLive;
+  $('saveNames').textContent = isLive ? 'Add names to the event' : 'Save names';
+  $('names').placeholder = isLive ? 'Paste names to add to the event, one per line. Names already in the event are skipped.' : '';
+  if (liveMode !== isLive) { liveMode = isLive; $('names').value = isLive ? '' : s.names.join('\n'); }
+  if (user) {
+    const winners = LD.live.winners(), next = LD.live.nextPrize();
+    $('prizeList').replaceChildren(...LD.live.prizes().map(p => {
+      const li = document.createElement('li'), w = winners[p.id];
+      li.textContent = `${p.order}. ${p.name} — ${w && w.status === 'active' ? 'won by ' + w.name : next && next.id === p.id ? 'next draw' : 'waiting'}`;
+      return li;
+    }));
+  }
+}
+$('signin').addEventListener('submit', async e => {
+  e.preventDefault(); $('signinMsg').textContent = 'Signing in…';
+  try { await LD.live.signIn($('email').value, $('pw').value); $('pw').value = ''; $('signinMsg').textContent = ''; }
+  catch (err) { $('signinMsg').textContent = AUTH_TEXT[err.code] || 'Could not sign in. Check the connection and try again.'; }
+});
+$('signout').addEventListener('click', async () => { await LD.live.signOut(); $('signinMsg').textContent = ''; });
+$('addPrize').addEventListener('click', async () => {
+  if (!$('newPrize').value.trim()) return;
+  try { await LD.live.addPrize($('newPrize').value); $('newPrize').value = ''; $('liveMsg').textContent = 'Prize added.'; }
+  catch (err) { $('liveMsg').textContent = 'Could not add the prize: ' + (err.message || err); }
+});
+LD.live.onChange(() => { render(); renderLive(); });
+renderLive();
 let armed = null;
 $('clear').addEventListener('click', e => {
   const b = e.currentTarget;
