@@ -3,7 +3,7 @@
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-const PAGES = [['index.html', 'Hub'], ['names.html', 'Names'], ['prizes.html', 'Prizes'], ['display.html', 'Display'], ['draw.html', 'Draw']];
+const PAGES = [['index.html', 'Hub'], ['names.html', 'Names'], ['prizes.html', 'Prizes'], ['batch.html', 'Batch'], ['display.html', 'Display'], ['draw.html', 'Draw']];
 
 // Top navigation. The status text on the right shows whether the event is connected.
 function nav(active) {

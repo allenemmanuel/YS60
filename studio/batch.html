@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="pages.css">
+    <title>Batch draw · Lucky Draw Studio</title>
+    <style>
+        .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+        .trophy { position: relative; display: grid; gap: 10px; align-content: start; min-height: 150px; padding: 18px 16px 16px; border-radius: 14px;
+            background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid var(--line);
+            box-shadow: inset 0 -3px 0 rgba(232,199,122,.35); transition: border-color .3s ease, background .3s ease; }
+        .trophy .no { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+        .trophy .prize { font: 500 14px/1.35 var(--body); color: var(--muted); overflow-wrap: anywhere; }
+        .trophy .who { font: 700 1.2rem/1.2 var(--display); color: var(--faint); min-height: 2.4em; overflow-wrap: anywhere; }
+        .trophy.rolling { border-color: rgba(92,184,95,.6); }
+        .trophy.won { border-color: rgba(232,199,122,.45); background: linear-gradient(180deg, rgba(232,199,122,.14), rgba(232,199,122,.03)); animation: settle .5s ease-out; }
+        .trophy.won .who { color: var(--gold); }
+        .trophy.won .prize { color: var(--ink); }
+        @keyframes settle { from { transform: translateY(6px); opacity: .4; } to { transform: none; opacity: 1; } }
+    </style>
+</head>
+<body>
+<div class="wrap wide">
+  <nav class="nav" id="nav" aria-label="Pages"></nav>
+
+  <header class="page-head">
+    <h1>Batch draw</h1>
+    <p class="sub">Draw the next prizes in one go, before the top prizes. Each prize gets its own name, and each winner is saved to the event as it is drawn.</p>
+  </header>
+
+  <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
+
+  <section class="panel" aria-labelledby="setH">
+    <div class="head">
+      <h2 id="setH">Set up the batch</h2>
+      <div class="stat"><b id="left">—</b><span>prizes left</span></div>
+    </div>
+    <div class="row">
+      <label class="sub" for="howMany">How many prizes to draw</label>
+      <input id="howMany" class="field num" type="number" min="1" step="1" value="10" inputmode="numeric">
+      <button id="start" class="primary" type="button">Draw batch</button>
+    </div>
+    <p class="msg" id="msg" role="status"></p>
+  </section>
+
+  <section aria-labelledby="shelfH">
+    <div class="head" style="margin-bottom: 14px">
+      <h2 id="shelfH">The shelf</h2>
+      <span class="sub" id="shelfInfo"></span>
+    </div>
+    <div class="shelf" id="shelf"></div>
+    <p class="empty" id="empty" hidden>Set how many prizes to draw. The next prizes in draw order appear here.</p>
+  </section>
+</div>
+<script src="core.js"></script>
+<script src="pages.js"></script>
+<script>
+nav('batch.html');
+gate($('gate'));
+
+let running = false;
+let slots = [];          // the prizes in this batch, in draw order
+const won = {};          // prize id -> winner name, filled as each draw is saved
+let rollingId = null;    // the prize being rolled right now
+let result = null;       // { text, err } after a batch finishes or stops
+
+const remaining = () => prizeRows().filter(p => !p.won);
+const requested = () => Math.floor(Number($('howMany').value));
+
+// Why the batch can't start yet, or '' if it can
+function problem() {
+    if (LD.live.state() !== 'on') return 'Sign in first.';
+    const n = requested();
+    if (!Number.isFinite(n) || n < 1) return 'Enter a number of at least 1.';
+    const left = remaining().length;
+    if (!left) return 'No prizes are left to draw.';
+    if (n > left) return `Only ${left} prize${left === 1 ? ' is' : 's are'} left to draw.`;
+    const names = LD.pool().length;
+    if (names < n) return `Only ${names} name${names === 1 ? ' is' : 's are'} left in the draw.`;
+    return '';
+}
+
+function renderShelf() {
+    $('shelf').innerHTML = slots.map(p => {
+        const name = won[p.id];
+        const state = name ? 'won' : p.id === rollingId ? 'rolling' : '';
+        return `<article class="trophy ${state}">
+            <span class="no">Prize ${p.order}</span>
+            <div class="prize">${esc(p.name)}</div>
+            <div class="who">${name ? esc(name) : state === 'rolling' ? '…' : '—'}</div>
+        </article>`;
+    }).join('');
+    $('empty').hidden = slots.length > 0;
+    const drawn = Object.keys(won).length;
+    $('shelfInfo').textContent = slots.length ? `${drawn} of ${slots.length} drawn` : '';
+}
+
+function showMessage() {
+    const why = problem();
+    $('start').disabled = running || !!why;
+    if (result) { $('msg').classList.toggle('err', result.err); $('msg').textContent = result.text; return; }
+    $('msg').classList.toggle('err', !!why && LD.live.state() === 'on');
+    $('msg').textContent = why;
+}
+
+// Keep the shelf in step with the number typed in (only while nothing is drawing)
+function preview() {
+    if (running) return;
+    const n = Math.max(0, requested() || 0);
+    for (const k of Object.keys(won)) delete won[k];
+    slots = remaining().slice(0, n);
+    renderShelf();
+}
+
+function refresh() {
+    $('left').textContent = LD.live.state() === 'on' ? remaining().length : '—';
+    if (!running) showMessage();
+}
+
+$('howMany').addEventListener('input', () => { result = null; preview(); refresh(); });
+
+$('start').addEventListener('click', async () => {
+    const why = problem();
+    if (why) { result = { text: why, err: true }; showMessage(); return; }
+    const n = requested();
+    if (!confirm(`Draw the next ${n} prize${n === 1 ? '' : 's'}? Each winner is saved to the event as it is drawn.`)) return;
+
+    running = true; result = null;
+    $('howMany').disabled = true; $('start').disabled = true;
+    for (const k of Object.keys(won)) delete won[k];
+    slots = remaining().slice(0, n);
+    renderShelf();
+    $('msg').classList.remove('err'); $('msg').textContent = 'Drawing…';
+
+    let done = 0;
+    try {
+        for (let i = 0; i < n; i++) {
+            rollingId = remaining()[0]?.id || null;
+            renderShelf();
+            // the draw is saved while the names roll (see LD.nameRoll); the winner shows only after the save
+            const claim = await LD.nameRoll(LD.pool(), { accent: '#5cb85f', minMs: LD.reduced ? 1200 : 2000, until: LD.live.draw() });
+            won[claim.prize.id] = claim.name;
+            done++;
+            rollingId = null;
+            $('msg').textContent = `${done} of ${n} drawn.`;
+            renderShelf();
+        }
+        result = { text: `Done. ${done} prize${done === 1 ? '' : 's'} drawn.`, err: false };
+    } catch (err) {
+        console.error(err);
+        result = { text: `Stopped after ${done} of ${n}. ${err.message || 'The draw was not saved.'}`, err: true };
+    } finally {
+        running = false; rollingId = null;
+        $('howMany').disabled = false;
+        renderShelf();
+        refresh();
+    }
+});
+
+LD.live.onChange(() => { if (!slots.length && !running) preview(); refresh(); });
+preview();
+refresh();
+</script>
+</body>
+</html>

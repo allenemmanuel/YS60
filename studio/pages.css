@@ -140,6 +140,8 @@ textarea { width: 100%; min-height: 240px; resize: vertical; line-height: 1.6; }
 .cols.stack { grid-template-columns: 1fr; }.panel label.sub { font-size: 13px; color: var(--muted); }
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .row .field { width: auto; flex: 1 1 200px; }
+.row > button { flex: 0 0 auto; }
+.row > input.field.num { flex: 0 0 140px; width: 140px; }
 .msg { font-size: 14px; color: var(--green); min-height: 1.4em; }
 .msg.err { color: var(--warn); }
 
