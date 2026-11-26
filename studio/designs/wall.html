@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en" data-design="wall">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Honour Wall · Lucky Draw</title>
+<link rel="stylesheet" href="../vendor/fonts/wall.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+/* Layout: a dark engraved wall, every entrant in its own brass-framed panel. A beam of light travels the panels,
+   gathers pace, eases down and stops on the winner, whose panel lifts forward and is set in gold leaf. */
+:root { --bg: #0b0a0d; --ink: #f4e6c2; --muted: #a69d90; --accent: #d6b46a; --accent-2: #9a7230; --btn-ink: #1d1407;
+  --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --body: "Manrope", "Segoe UI", system-ui, sans-serif; }
+body { background: radial-gradient(90% 70% at 50% 45%, #1b1620 0%, #0b0a0d 72%); }
+
+#wall { position: fixed; left: 50%; top: 52%; transform: translate(-50%, -50%); width: min(1040px, 94vw);
+  display: grid; gap: 6px; grid-template-columns: repeat(var(--cols, 8), minmax(0, 1fr)); transition: opacity .4s; }
+.panel { position: relative; aspect-ratio: 1.6; display: grid; place-items: center; padding: 4px 6px; overflow: hidden;
+  background: linear-gradient(180deg, #211b28, #140f19); border: 1px solid #3d3446; border-radius: 2px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -3px 8px rgba(0,0,0,.55); }
+.panel::before { content: ""; position: absolute; inset: 3px; border: 1px solid rgba(214,180,106,.12); pointer-events: none; }
+.panel span { font-family: var(--display); font-size: var(--fs, 11px); font-weight: 600; line-height: 1.12; color: #8f8699; text-align: center;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+#wall.dim .panel { opacity: .14; transition: opacity .9s ease; }
+.glow { position: absolute; left: 0; top: 0; width: 0; height: 0; border-radius: 2px; pointer-events: none; opacity: 0; z-index: 2;
+  background: radial-gradient(closest-side, rgba(255,240,200,.30), rgba(255,220,150,.06) 75%, transparent);
+  box-shadow: 0 0 0 1px rgba(255,226,160,.95), 0 0 26px 4px rgba(255,200,110,.55); }
+.glow.on { opacity: 1; }
+
+.hero { position: fixed; z-index: 6; left: 0; top: 0; width: 640px; max-width: 82vw; padding: 34px 40px 40px; text-align: center;
+  opacity: 0; transform-origin: 0 0; pointer-events: none; background: linear-gradient(180deg, #2a2230, #17121c);
+  border: 1px solid rgba(214,180,106,.7); box-shadow: 0 0 0 6px rgba(214,180,106,.08), 0 30px 60px rgba(0,0,0,.6); }
+.hero .lbl { font: 600 11px/1 var(--body); letter-spacing: .32em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+.hero .name { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.4vw, 50px); line-height: 1.08; color: #f4d990; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { #wall.dim .panel { transition: none; } }
+</style>
+</head>
+<body>
+<div id="wall" aria-hidden="true"><div class="glow" id="glow"></div></div>
+<div class="hero" id="hero" aria-hidden="true"><div class="lbl">Winner</div><div class="name" id="heroName"></div></div>
+
+<div class="ui top"><div><h1 data-ld-prize>Lucky Draw</h1><p id="meta"></p></div><button id="soundBtn" class="ghost" type="button">Sound on</button></div>
+<div class="ui bottom"><div class="controls"><button id="draw" type="button">Reveal</button><button id="reset" class="ghost" type="button" hidden>New draw</button></div><p class="hint" id="hint"></p></div>
+<div id="result" class="sr" role="status" aria-live="polite"></div>
+
+<script src="../core.js"></script>
+<script type="importmap">
+{ "imports": { "gsap": "../vendor/gsap/index.js", "gsap/": "../vendor/gsap/" } }
+</script>
+<script type="module">
+import { gsap } from 'gsap';
+const $ = id => document.getElementById(id);
+const wall = $('wall'), glow = $('glow'), hero = $('hero'), heroName = $('heroName');
+const GAP = 6;
+let panels = [], names = [];
+
+// choose the column count so the whole field fits on screen, then size the panel text to the panel
+function fit() {
+  const n = Math.max(1, names.length), vw = innerWidth, vh = innerHeight;
+  const W = Math.min(1040, vw * 0.94), maxH = Math.max(200, vh - 330);
+  let cols = 30;
+  for (let c = 4; c <= 30; c++) {
+    const w = (W - GAP * (c - 1)) / c, rows = Math.ceil(n / c);
+    if (rows * (w / 1.6) + (rows - 1) * GAP <= maxH) { cols = c; break; }
+  }
+  const pw = (W - GAP * (cols - 1)) / cols;
+  wall.style.width = W + 'px';
+  wall.style.setProperty('--cols', cols);
+  wall.style.setProperty('--fs', Math.max(7, Math.min(13, pw / 8.5)) + 'px');
+}
+function build() {
+  names = LD.pool();
+  const cells = names.map(name => { const d = document.createElement('div'); d.className = 'panel'; const s = document.createElement('span'); s.textContent = name; d.append(s); return d; });
+  wall.replaceChildren(glow, ...cells);
+  panels = cells;
+  fit();
+}
+function place(i) {
+  const p = panels[i];
+  glow.style.width = p.offsetWidth + 'px'; glow.style.height = p.offsetHeight + 'px';
+  glow.style.transform = `translate(${p.offsetLeft}px, ${p.offsetTop}px)`;
+}
+addEventListener('resize', fit);
+build();
+
+LD.stage({
+  accent: '#d6b46a', drawingHint: 'The light is travelling the wall…',
+  async draw(winner) {
+    const total = panels.length, w = names.indexOf(winner);
+    if (w < 0) return;
+    // two passes around the wall (one for big lists), then the beam stops on the winner
+    const passes = Math.max(1, Math.floor(60 / total));
+    const K = passes * total + w;
+    glow.classList.add('on');
+    let last = -1;
+    await LD.tween(4300, e => {
+      const s = Math.min(K, Math.floor(e * K));
+      if (s === last) return;
+      last = s; place(s % total);
+      if (s % 2 === 0) LD.snd.tick(1500 + (s % total) * 9);
+    }, LD.ease.inOutCubic);
+    place(w);
+
+    // the winner's panel lifts out of the wall and grows into the centre (uniform scale, so the text is not distorted)
+    const r = panels[w].getBoundingClientRect();
+    const W = Math.min(640, innerWidth * 0.82);
+    heroName.textContent = winner;
+    hero.style.width = W + 'px';
+    const H = hero.offsetHeight;
+    const L = (innerWidth - W) / 2, T = (innerHeight - H) / 2;
+    hero.style.left = L + 'px'; hero.style.top = T + 'px';
+    wall.classList.add('dim');
+    await new Promise(res => gsap.fromTo(hero,
+      { x: r.left - L, y: r.top - T, scale: r.width / W, opacity: 0.6 },
+      { x: 0, y: 0, scale: 1, opacity: 1, duration: LD.reduced ? 0 : 1.6, delay: LD.reduced ? 0 : .2, ease: 'power3.inOut', onComplete: res }));
+    LD.snd.chime();
+  },
+  async reset() {
+    await new Promise(res => gsap.to(hero, { opacity: 0, duration: LD.reduced ? 0 : .6, ease: 'sine.out', onComplete: res }));
+    wall.classList.remove('dim'); glow.classList.remove('on');
+    gsap.set(hero, { clearProps: 'transform' });
+    build();
+  }
+});
+</script>
+</body>
+</html>

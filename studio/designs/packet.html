@@ -1,0 +1,392 @@
+<!doctype html><html data-design="packet"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Red Packet Draw</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../vendor/fonts/packet.css">
+<style>
+/* Layout: a jade-lacquer table; red packets laid out on the table stage, header above, controls below, names drawer from the right */
+:root {
+  --table: #0b2a27;
+  --table-2: #13453f;
+  --red: #c4152f;
+  --red-deep: #7c0a1b;
+  --gold: #e2b65c;
+  --gold-hi: #fbe2a2;
+  --cream: #fbf3e1;
+  --ink: #f3ead6;
+  --muted: #9fbab3;
+  --display: "Marcellus", "Cinzel", Georgia, serif;
+  --name: "Cormorant Garamond", "Garamond", Georgia, serif;
+  --body: "Mulish", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; color: var(--ink); font-family: var(--body); overflow-x: hidden;
+  background: radial-gradient(90% 70% at 50% 45%, var(--table-2) 0%, var(--table) 62%, #061917 100%) fixed, var(--table); }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .25;
+  background: repeating-linear-gradient(115deg, rgba(255,255,255,.02) 0 2px, transparent 2px 9px); }
+.page { min-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 18px;
+  padding-block: calc(20px + env(safe-area-inset-top, 0px)) calc(22px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.mast { width: min(1100px, 100%); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.mast h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(30px, 5vw, 48px); letter-spacing: .06em; color: var(--gold); line-height: 1; }
+.mast p { margin: 8px 0 0; font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tools { display: flex; gap: 10px; flex-wrap: wrap; }
+button { font-family: var(--body); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: transform .12s, background .2s, opacity .2s; }
+button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 3px; }
+.ghost { background: rgba(0,0,0,.18); color: var(--gold); border: 1px solid rgba(226,182,92,.5); border-radius: 999px; padding: 10px 16px; font-size: 12px; }
+.ghost:hover { background: rgba(226,182,92,.1); }
+
+#stage { position: relative; width: min(1100px, 100%); height: clamp(400px, 64vh, 640px); }
+/* red packet (small) */
+.env { backface-visibility: hidden; position: absolute; left: 0; top: 0; width: var(--ew); height: calc(var(--ew) * 1.5); border-radius: 7px; will-change: transform;
+  background: linear-gradient(160deg, #d71d38 0%, var(--red) 45%, #940c22 100%);
+  box-shadow: 0 10px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.18);
+  transition: translate .16s ease-out, filter .16s ease-out; }
+.env::before { content: ""; position: absolute; inset: 5px; border: 1px solid rgba(226,182,92,.55); border-radius: 4px; }
+.env .f { position: absolute; left: 0; right: 0; top: 0; height: 46%; background: linear-gradient(180deg, #a60f26, #8a0b1f);
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%); }
+.env .seal { position: absolute; left: 50%; top: 46%; width: 34%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--gold-hi), var(--gold) 45%, #9d7428 100%); box-shadow: 0 2px 4px rgba(0,0,0,.35); }
+.env .seal::after { content: ""; position: absolute; inset: 22%; border-radius: 50%; border: 1.5px solid rgba(124,10,27,.55); }
+.env .band { position: absolute; left: 12%; right: 12%; bottom: 14%; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+.env.lit { translate: 0 -16px; filter: brightness(1.18) drop-shadow(0 0 14px rgba(251,226,162,.75)); }
+
+/* hero packet + card */
+.hero { position: absolute; z-index: 300; width: var(--hw); height: calc(var(--hw) * 1.5); perspective: 1000px; visibility: hidden; }
+.hero > * { position: absolute; }
+.h-back { inset: 0; border-radius: 12px; background: linear-gradient(160deg, #a31029, #6e0918); box-shadow: 0 30px 60px rgba(0,0,0,.5); z-index: 1; }
+.card { left: 6%; right: 6%; top: 5%; height: 88%; z-index: 2; border-radius: 10px; background: linear-gradient(180deg, var(--cream), #f2e2bd);
+  box-shadow: 0 8px 30px rgba(0,0,0,.35); display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 9% 9% 8%; color: #3a1208; transform-origin: 50% 50%; }
+/* after leaving the packet the card opens out wide, so long names keep a large size */
+.card.wide { padding: clamp(18px, 4vh, 34px) clamp(20px, 5vw, 56px) clamp(16px, 3.5vh, 30px); box-shadow: 0 24px 70px rgba(0,0,0,.5); }
+.card.wide::before { inset: 12px; }
+.card.wide .eyebrow { font-size: clamp(12px, 1.7vw, 17px); }
+.card.wide .rule { width: 22%; margin: clamp(8px, 2vh, 16px) 0; }
+.card.wide .foot { font-size: clamp(11px, 1.3vw, 13px); }
+.card::before { content: ""; position: absolute; inset: 10px; border: 1.5px solid rgba(181,135,52,.8); border-radius: 6px; pointer-events: none; }
+.card .eyebrow { font-family: var(--display); font-size: calc(var(--hw) * 0.05); letter-spacing: .24em; color: #a2731f; text-transform: uppercase; }
+.card .rule { width: 34%; height: 1px; background: linear-gradient(90deg, transparent, #b58734, transparent); margin: 6% 0; }
+.card .hname { flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.card .hname span { max-width: 100%; font-family: var(--name); font-weight: 700; line-height: 1.08; overflow-wrap: anywhere; text-wrap: balance; color: #5b0d12; }
+.card .foot { font-size: calc(var(--hw) * 0.038); letter-spacing: .2em; color: #8b6a3a; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.h-front { left: 0; right: 0; bottom: 0; top: 30%; z-index: 3; border-radius: 0 0 12px 12px;
+  background: linear-gradient(170deg, #d71d38 0%, var(--red) 40%, #8f0b21 100%);
+  clip-path: polygon(0 10%, 50% 0, 100% 10%, 100% 100%, 0 100%); }
+.h-front::before { content: ""; position: absolute; inset: 14% 7% 5%; border: 1.5px solid rgba(226,182,92,.6); border-radius: 6px; }
+.h-front .seal { position: absolute; left: 50%; top: 40%; width: 34%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--gold-hi), var(--gold) 45%, #9d7428 100%); box-shadow: 0 3px 8px rgba(0,0,0,.35); }
+.h-front .seal::after { content: ""; position: absolute; inset: 20%; border-radius: 50%; border: 2px solid rgba(124,10,27,.55); }
+.h-flap { left: 0; right: 0; top: 0; height: 40%; z-index: 4; transform-origin: 50% 0; background: linear-gradient(180deg, #b8122c, #8a0b1f);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%); border-radius: 12px 12px 0 0; }
+
+#result { text-align: center; min-height: 22px; opacity: 0; transition: opacity 1.2s ease; font-size: 13px; letter-spacing: .26em; text-transform: uppercase; color: var(--gold); }
+#result.show { opacity: 1; }
+.controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+#draw { font-family: var(--display); font-weight: 400; font-size: 22px; letter-spacing: .16em; padding: 15px 52px; border-radius: 999px; border: 1px solid var(--gold-hi);
+  color: #fff6e6; background: linear-gradient(180deg, #e0263f, var(--red) 55%, var(--red-deep)); box-shadow: 0 0 0 4px rgba(226,182,92,.25), 0 12px 30px rgba(196,21,47,.45); }
+#draw:hover:not(:disabled) { transform: translateY(-2px); }
+#draw:disabled { opacity: .45; cursor: default; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
+
+#drawer { position: fixed; z-index: 20; top: 0; right: 0; bottom: 0; width: min(390px, 100%); background: rgba(6, 25, 23, .97); border-left: 1px solid rgba(226,182,92,.4);
+  display: flex; flex-direction: column; gap: 14px; padding-block: calc(20px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-left: 22px; padding-right: max(22px, env(safe-area-inset-right, 0px)); transform: translateX(105%); transition: transform .35s cubic-bezier(.2,.8,.2,1); visibility: hidden; }
+#drawer.open { transform: none; visibility: visible; }
+#drawer header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#drawer h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 24px; color: var(--gold); letter-spacing: .06em; }
+#drawer label.cap { font-size: 13px; color: var(--muted); }
+#names { flex: 1; min-height: 160px; resize: none; background: rgba(0,0,0,.25); color: var(--ink); border: 1px solid rgba(226,182,92,.4); border-radius: 10px; padding: 12px 14px; font: 14px/1.55 var(--body); }
+.row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.row input { accent-color: var(--red); width: 18px; height: 18px; }
+.drawer-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+#saveNames { font-size: 13px; padding: 11px 22px; border-radius: 999px; border: 0; color: #fff6e6; background: var(--red); }
+.winners { font-size: 14px; max-height: 28vh; overflow-y: auto; }
+.winners h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: .2em; color: var(--gold); text-transform: uppercase; }
+.winners ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { #drawer, .env { transition: none; } }
+</style>
+
+<div class="page">
+  <header class="mast">
+    <div><h1 data-ld-prize>Lucky Draw</h1><p id="meta">Draw 01 · 22 entries</p></div>
+    <div class="tools">
+      <button id="soundBtn" class="ghost" type="button" aria-pressed="true">Sound on</button>
+      <button id="namesBtn" class="ghost" type="button" aria-controls="drawer" aria-expanded="false">Names</button>
+    </div>
+  </header>
+
+  <div id="stage" aria-label="Red packets on the table">
+    <div class="hero" id="hero" aria-hidden="true">
+      <div class="h-back"></div>
+      <div class="card" id="card"><div class="eyebrow">Congratulations</div><div class="rule"></div><div class="hname"><span id="heroName"></span></div><div class="rule"></div><div class="foot" id="cardFoot">Lucky Draw</div></div>
+      <div class="h-front"><div class="seal"></div></div>
+      <div class="h-flap" id="flap"></div>
+    </div>
+  </div>
+
+  <div id="result" role="status" aria-live="polite"></div>
+  <div class="controls">
+    <button id="draw" type="button">Draw</button>
+    <button id="reset" class="ghost" type="button" hidden>New draw</button>
+  </div>
+  <p class="hint" id="hint">Press Draw to shuffle the packets</p>
+</div>
+
+<aside id="drawer" aria-label="Names in the draw">
+  <header><h2>Names</h2><button id="closeDrawer" class="ghost" type="button">Close</button></header>
+  <label class="cap" for="names">One name per line. These are sample names, so replace them with your own.</label>
+  <textarea id="names" spellcheck="false"></textarea>
+  <label class="row" for="removeWinners"><input type="checkbox" id="removeWinners" checked> Take winners out of the next draws</label>
+  <div class="drawer-actions">
+    <button id="saveNames" type="button">Save names</button>
+    <button id="clearWinners" class="ghost" type="button">Clear winners</button>
+  </div>
+  <div class="winners" id="winnersBox" hidden><h3>Winners so far</h3><ol id="winnersList"></ol></div>
+</aside>
+
+<script src="../core.js"></script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const EASE = 'cubic-bezier(.2,.8,.2,1)';
+
+// ---------- names ----------
+const LS = LD.load(); LD.demoOnly();
+let names = LS.names, winners = LS.winners, removeWinners = LS.removeWinners, soundOn = LS.soundOn, musicOn = LS.musicOn;
+const persist = () => LD.save({ names, winners, removeWinners, soundOn, musicOn });
+const drawPool = () => removeWinners ? names.filter(n => !winners.includes(n)) : names.slice();
+
+// ---------- sound: soft paper swish and a bell-like tick ----------
+let ac = null;
+function initAudio() { if (ac) return; try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+function tone(freq, dur = 0.12, vol = 0.08, type = 'triangle') {
+  if (!soundOn || !ac) return; const t = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur);
+}
+function swish(vol = 0.05) {
+  if (!soundOn || !ac) return; const t = ac.currentTime, len = Math.floor(ac.sampleRate * 0.22);
+  const b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / len);
+  const s = ac.createBufferSource(); s.buffer = b; const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 2500;
+  const g = ac.createGain(); g.gain.value = vol; s.connect(f).connect(g).connect(ac.destination); s.start(t);
+}
+
+// ---------- stage geometry ----------
+const stage = $('stage'), hero = $('hero'), card = $('card'), flap = $('flap');
+let W = 0, H = 0, EW = 0, EH = 0, envs = [];
+const tf = p => `translate(${(p.x - EW / 2).toFixed(1)}px, ${(p.y - EH / 2).toFixed(1)}px) rotate(${(p.r || 0).toFixed(2)}deg) scale(${p.s || 1})`;
+function measure() {
+  W = stage.clientWidth; H = stage.clientHeight;
+  EW = W >= 700 ? 88 : 62; EH = EW * 1.5; stage.style.setProperty('--ew', EW + 'px');
+}
+function gridSlots(n) {
+  const cols = W >= 700 ? 6 : 4, rows = Math.ceil(n / cols), out = [];
+  const gx = W / cols, gy = Math.min(H / rows, EH * 1.35), y0 = (H - gy * rows) / 2 + gy / 2;
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / cols), c = i % cols, inRow = Math.min(cols, n - r * cols);
+    const x0 = (W - inRow * gx) / 2 + gx / 2;
+    out.push({ x: x0 + c * gx, y: y0 + r * gy });
+  }
+  return out;
+}
+function envCount() { return Math.max(6, Math.min(W >= 700 ? 18 : 12, drawPool().length || 6)); }
+function makeEnv() {
+  const e = document.createElement('div'); e.className = 'env'; e.innerHTML = '<div class="f"></div><div class="seal"></div><div class="band"></div>';
+  stage.insertBefore(e, hero); return e;
+}
+function layoutGrid(animated) {
+  measure();
+  const n = envCount();
+  while (envs.length < n) envs.push({ el: makeEnv(), p: { x: W / 2, y: H + EH, r: 0 } });
+  while (envs.length > n) envs.pop().el.remove();
+  const slots = gridSlots(n);
+  return Promise.all(envs.map((e, i) => {
+    e.el.style.opacity = 1; e.el.style.zIndex = i;
+    return moveTo(e, { ...slots[i], r: (Math.random() - 0.5) * 10 }, animated ? 650 + i * 25 : 0);
+  }));
+}
+function moveTo(e, p, dur, { easing = EASE, lift = 0, opacity } = {}) {
+  const from = e.el.style.transform || tf(e.p), to = tf(p);
+  e.p = p; e.el.style.transform = to;
+  if (opacity !== undefined) e.el.style.opacity = opacity;
+  if (!dur || reduced) return Promise.resolve();
+  const frames = lift
+    ? [{ transform: from }, { transform: tf({ x: (e.pPrev?.x ?? p.x) / 2 + p.x / 2, y: p.y - lift, r: p.r, s: 1.08 }), offset: 0.5 }, { transform: to }]
+    : [{ transform: from }, { transform: to }];
+  return e.el.animate(frames, { duration: dur, easing }).finished.catch(() => {});
+}
+
+// ---------- the draw ----------
+const drawBtn = $('draw'), resetBtn = $('reset'), namesBtn = $('namesBtn'), resultEl = $('result'), hintEl = $('hint');
+let busy = false, shown = false;
+
+async function shuffleRounds(rounds) {
+  const slots = gridSlots(envs.length);
+  for (let k = 0; k < rounds; k++) {
+    const perm = slots.map((_, i) => i).sort(() => Math.random() - 0.5);
+    swish(0.035);
+    await Promise.all(envs.map((e, i) => {
+      e.pPrev = e.p; e.el.style.zIndex = Math.floor(Math.random() * 50);
+      return moveTo(e, { ...slots[perm[i]], r: (Math.random() - 0.5) * 24 }, 360 - k * 12, { lift: 26 });
+    }));
+  }
+}
+function fanSlots(n) {
+  const R = Math.min(W * 0.62, H * 1.05), cx = W / 2, cy = H * 0.52 + R;
+  const spread = Math.min(70, 8 + n * 4.2), out = [];
+  for (let i = 0; i < n; i++) {
+    const a = (n === 1 ? 0 : -spread / 2 + spread * i / (n - 1)) * Math.PI / 180;
+    out.push({ x: cx + Math.sin(a) * R, y: cy - Math.cos(a) * R, r: a * 180 / Math.PI });
+  }
+  return out;
+}
+async function roulette(target) {
+  const n = envs.length, steps = n * 2 + target;
+  let prev = null;
+  for (let i = 0; i <= steps; i++) {
+    const e = envs[i % n]; if (prev) prev.el.classList.remove('lit'); e.el.classList.add('lit'); prev = e;
+    tone(1180 + (i % 3) * 40, 0.08, 0.045);
+    const k = i / steps; await sleep(reduced ? 20 : 45 + 420 * Math.pow(k, 3));
+  }
+  return prev;
+}
+function fitName(name, maxPx) {
+  const span = $('heroName'), box = span.parentElement;
+  span.textContent = name;
+  let lo = 10, hi = Math.round(maxPx || parseFloat(getComputedStyle(stage).getPropertyValue('--hw')) * 0.2);
+  while (lo < hi) { // largest size that fits the name box
+    const mid = Math.ceil((lo + hi) / 2); span.style.fontSize = mid + 'px';
+    if (span.scrollHeight <= box.clientHeight && span.scrollWidth <= box.clientWidth) lo = mid; else hi = mid - 1;
+  }
+  span.style.fontSize = lo + 'px';
+}
+
+drawBtn.addEventListener('click', async () => {
+  const pool = drawPool(); if (busy || !pool.length) return;
+  initAudio(); if (ac && ac.state === 'suspended') ac.resume();
+  busy = true; drawBtn.disabled = true; namesBtn.disabled = true; openDrawer(false);
+  const winner = LD.pick(pool);
+  await LD.nameRoll(pool, { minMs: reduced ? 1200 : 2800 });
+  hintEl.textContent = 'Shuffling…';
+  await shuffleRounds(reduced ? 1 : 7);
+
+  // gather into a fan
+  hintEl.textContent = 'Picking a packet…';
+  const fan = fanSlots(envs.length);
+  envs.sort(() => Math.random() - 0.5);
+  swish(0.05);
+  await Promise.all(envs.map((e, i) => { e.el.style.zIndex = i; return moveTo(e, fan[i], 700 + i * 18); }));
+  await sleep(200);
+  const chosen = await roulette(Math.floor(Math.random() * envs.length));
+  await sleep(350);
+
+  // chosen packet rises, the rest slide off the table
+  chosen.el.classList.remove('lit'); chosen.el.style.zIndex = 200;
+  tone(880, 0.5, 0.06, 'sine'); tone(1320, 0.7, 0.04, 'sine');
+  const hw = Math.min(300, W * 0.62, (H * 0.92) / 1.5 / 1.18);
+  stage.style.setProperty('--hw', hw + 'px');
+  const hx = (W - hw) / 2, hy = (H - hw * 1.5) / 2;
+  hero.style.left = hx + 'px'; hero.style.top = hy + 'px';
+  envs.forEach(e => { if (e !== chosen) moveTo(e, { ...e.p, y: e.p.y + H * 0.8, r: e.p.r * 1.6 }, 800, { opacity: 0 }); });
+  await moveTo(chosen, { x: W / 2, y: H / 2, r: 0, s: hw / EW }, 750);
+
+  // swap to the full-size packet in place
+  fitName(winner);
+  $('cardFoot').textContent = 'Lucky Draw · No. ' + String(winners.length + 1).padStart(2, '0');
+  hero.style.visibility = 'visible'; chosen.el.style.opacity = 0;
+  card.style.zIndex = 2; flap.style.zIndex = 4;
+  await sleep(250);
+
+  // open the flap
+  swish(0.06);
+  const fa = flap.animate([{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(180deg)' }], { duration: reduced ? 1 : 650, easing: 'ease-in-out', fill: 'forwards' });
+  await sleep(reduced ? 1 : 330); flap.style.zIndex = 0; await fa.finished;
+
+  // card slides out, comes to the front, packet drops away
+  swish(0.07);
+  await card.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-82%)' }], { duration: reduced ? 1 : 850, easing: 'cubic-bezier(.3,.1,.2,1)', fill: 'forwards' }).finished;
+  card.style.zIndex = 6;
+  const parts = [hero.querySelector('.h-back'), hero.querySelector('.h-front'), flap];
+  parts.forEach(p => p.animate([{ transform: getComputedStyle(p).transform === 'none' ? 'none' : getComputedStyle(p).transform, opacity: 1 }, { transform: (p === flap ? 'rotateX(180deg) ' : '') + 'translateY(' + (p === flap ? '-' : '') + '70%)', opacity: 0 }],
+    { duration: reduced ? 1 : 800, easing: 'ease-in', fill: 'forwards' }));
+
+  // the card opens out from packet size into a wide card centred on the table
+  const cw0 = card.offsetWidth, ch0 = card.offsetHeight, cl0 = card.offsetLeft, ct0 = card.offsetTop - ch0 * 0.82;
+  const FW = Math.min(W * 0.96, 880), FH = Math.min(H * 0.9, Math.max(FW * 0.52, 280));
+  const cl1 = (W - FW) / 2 - hx, ct1 = (H - FH) / 2 - hy;
+  card.getAnimations().forEach(a => a.cancel());
+  Object.assign(card.style, { right: 'auto', transform: 'none', left: cl0 + 'px', top: ct0 + 'px', width: cw0 + 'px', height: ch0 + 'px' });
+  const nameSpan = $('heroName');
+  nameSpan.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced ? 1 : 220, fill: 'forwards' });
+  await card.animate([
+    { left: cl0 + 'px', top: ct0 + 'px', width: cw0 + 'px', height: ch0 + 'px' },
+    { left: cl1 + 'px', top: ct1 + 'px', width: FW + 'px', height: FH + 'px' }
+  ], { duration: reduced ? 1 : 900, easing: EASE, fill: 'forwards' }).finished;
+  Object.assign(card.style, { left: cl1 + 'px', top: ct1 + 'px', width: FW + 'px', height: FH + 'px' });
+  card.getAnimations().forEach(a => a.cancel());
+  card.classList.add('wide');
+  fitName(winner, Math.min(88, FH * 0.3));
+  nameSpan.getAnimations().forEach(a => a.cancel());
+  tone(1567, 0.9, 0.035, 'sine'); LD.confetti({ colors: ['#e2b65c', '#fbe2a2', '#c4152f', '#fbf3e1'] });
+  await nameSpan.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: reduced ? 1 : 550, easing: EASE }).finished;
+
+  resultEl.textContent = 'Winner · ' + winner; resultEl.classList.add('show');
+  if (!winners.includes(winner)) winners.push(winner);
+  shown = true; busy = false; persist(); renderUI();
+  drawBtn.hidden = true; resetBtn.hidden = false; hintEl.textContent = 'Press New draw to go again';
+});
+
+resetBtn.addEventListener('click', async () => {
+  resetBtn.hidden = true; drawBtn.hidden = false; resultEl.classList.remove('show'); shown = false; busy = true;
+  await card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: 'forwards' }).finished;
+  hero.style.visibility = 'hidden';
+  hero.querySelectorAll('*').forEach(el => el.getAnimations().forEach(a => a.cancel()));
+  card.getAnimations().forEach(a => a.cancel());
+  card.removeAttribute('style'); card.classList.remove('wide'); // back to packet size for the next draw
+  envs.forEach(e => { e.el.classList.remove('lit'); e.el.style.opacity = 1; e.p = { x: W / 2, y: H + EH, r: 0 }; e.el.style.transform = tf(e.p); });
+  await layoutGrid(true);
+  busy = false; namesBtn.disabled = false; renderUI();
+});
+
+// ---------- UI ----------
+const drawerEl = $('drawer'), namesEl = $('names');
+function renderUI() {
+  const p = drawPool().length;
+  $('meta').textContent = `Draw ${String(winners.length + (shown ? 0 : 1)).padStart(2, '0')} · ${p === 1 ? '1 entry' : p + ' entries'}`;
+  namesBtn.textContent = `Names · ${names.length}`;
+  $('winnersBox').hidden = winners.length === 0;
+  $('winnersList').replaceChildren(...winners.map(w => Object.assign(document.createElement('li'), { textContent: w })));
+  $('removeWinners').checked = removeWinners;
+  $('soundBtn').textContent = soundOn ? 'Sound on' : 'Sound off'; $('soundBtn').setAttribute('aria-pressed', String(soundOn));
+  if (!busy && !shown) { drawBtn.disabled = p === 0; hintEl.textContent = p === 0 ? 'Add names to start the draw' : 'Press Draw to shuffle the packets'; }
+}
+function openDrawer(open) {
+  drawerEl.classList.toggle('open', open); namesBtn.setAttribute('aria-expanded', String(open));
+  if (open) { namesEl.value = names.join('\n'); namesEl.focus(); }
+}
+namesBtn.addEventListener('click', () => openDrawer(!drawerEl.classList.contains('open')));
+$('closeDrawer').addEventListener('click', () => openDrawer(false));
+const refreshTable = () => { renderUI(); if (!busy && !shown) layoutGrid(true); };
+$('saveNames').addEventListener('click', () => {
+  names = [...new Set(namesEl.value.split('\n').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean))];
+  persist(); openDrawer(false); refreshTable();
+});
+$('clearWinners').addEventListener('click', () => { winners = []; persist(); refreshTable(); });
+$('removeWinners').addEventListener('change', e => { removeWinners = e.target.checked; persist(); refreshTable(); });
+$('soundBtn').addEventListener('click', () => { soundOn = !soundOn; persist(); renderUI(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') openDrawer(false); });
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!busy && !shown) layoutGrid(false); }, 150); });
+
+renderUI();
+layoutGrid(false);
+})();
+</script>
+
+<script>LD.chrome({ primary: ['draw','reset'], accent: '#e2b65c' });</script>
+</body></html>

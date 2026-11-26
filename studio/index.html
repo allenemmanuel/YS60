@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lucky Draw Studio</title>
+<link rel="stylesheet" href="vendor/fonts/hub.css">
+<style>
+/* Layout: header with the next-draw bar (prize + Surprise me), then a grid of 10 design cards, then Names and Winners side by side (stacked on phones) */
+:root {
+  --bg: #0d0b09; --surface: #17140f; --surface-2: #1f1b15; --ink: #f3ece0; --muted: #a79d8c; --line: #332c22;
+  --gold: #e2bd72; --gold-deep: #a9792c; --ok: #7fc59a;
+  --display: "Cormorant Garamond", Garamond, Georgia, serif;
+  --body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(120% 60% at 50% 0%, #1d170f 0%, var(--bg) 60%) fixed, var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 36px;
+  padding-block: calc(36px + env(safe-area-inset-top, 0px)) calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+header { display: grid; gap: 10px; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
+h1 { margin: 0; font-family: var(--display); font-weight: 600; font-size: clamp(40px, 6vw, 68px); line-height: 1; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+button, .btn { font: 600 13px/1 var(--body); letter-spacing: .08em; cursor: pointer; border-radius: 10px; padding: 12px 18px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink); transition: transform .12s, background .2s, border-color .2s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+button:hover, .btn:hover { border-color: var(--gold-deep); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.primary { background: linear-gradient(180deg, #f3d79a, var(--gold) 50%, var(--gold-deep)); color: #22170a; border-color: #f3d79a; }
+.danger.armed { background: #6e1a1a; border-color: #c55; }
+
+.next { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+.next label { display: grid; gap: 6px; flex: 1 1 320px; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.next input { font: 500 17px/1.3 var(--body); color: var(--ink); background: #0f0d0a; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; letter-spacing: 0; text-transform: none; }
+.stat { display: grid; gap: 2px; padding: 0 6px; }
+.stat b { font: 600 28px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+
+h2 { margin: 0 0 14px; font-family: var(--display); font-weight: 600; font-size: 30px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 18px; }
+.card { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  color: inherit; text-decoration: none; transition: transform .18s cubic-bezier(.2,.8,.2,1), border-color .2s, box-shadow .2s; min-width: 0; }
+.card:hover { transform: translateY(-3px); border-color: var(--gold-deep); box-shadow: 0 14px 40px rgba(0,0,0,.45); }
+.card.pulse { animation: pulse 1.4s ease-out 2; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(226,189,114,.7); } 100% { box-shadow: 0 0 0 18px rgba(226,189,114,0); } }
+.pv { aspect-ratio: 16 / 9; position: relative; overflow: hidden; display: grid; place-items: center; }
+.meta { padding: 14px 16px 16px; display: grid; gap: 6px; }
+.meta .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.meta h3 { margin: 0; font-family: var(--display); font-size: 23px; font-weight: 700; line-height: 1.1; }
+.meta kbd { font: 600 11px/1 var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; }
+.meta p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.tag { font-size: 11px; font-weight: 600; letter-spacing: .06em; padding: 3px 8px; border-radius: 999px; background: #262017; color: var(--muted); }
+.tag.used { background: #3a2c12; color: var(--gold); }
+.tag.fresh { background: #16271d; color: var(--ok); }
+.tag.new { background: #1e2236; color: #a9b6ff; }
+
+.panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 18px; }
+@media (max-width: 860px) { .panels { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.panel h2 { margin: 0; }
+.panel .sub { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
+textarea { width: 100%; min-height: 300px; resize: vertical; background: #0f0d0a; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font: 14px/1.6 var(--body); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.check { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+.check input { width: 18px; height: 18px; accent-color: var(--gold); }
+.saved { font-size: 13px; color: var(--ok); opacity: 0; transition: opacity .3s; }
+.saved.show { opacity: 1; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.num { color: var(--gold); font-variant-numeric: tabular-nums; width: 3ch; }
+td.name { font-weight: 600; overflow-wrap: anywhere; }
+td.small { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.empty { color: var(--muted); font-size: 14px; padding: 18px 0; }
+.keys { color: var(--muted); font-size: 13px; }
+.keys kbd { font: 600 11px/1 var(--body); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; color: var(--ink); }
+
+/* ---------- previews (fixed colours: each painted in its design's palette) ---------- */
+.p-reel { background: radial-gradient(80% 90% at 50% 45%, #1b1712, #050403 75%); }
+.p-reel .fr { width: 76%; height: 70%; border: 2px solid #c8ae78; display: grid; place-content: center; gap: 6px; text-align: center; font-family: var(--display); background: #0b0a09;
+  box-shadow: 0 0 0 5px #100e0d, 0 0 0 7px rgba(242,220,180,.35); }
+.p-reel span { color: #6f675b; font-size: 12px; } .p-reel b { color: #dcc492; font-size: 17px; border-block: 1px solid #c8ae78; padding: 4px 10px; background: #1f180e; }
+.p-packet { background: radial-gradient(90% 80% at 50% 45%, #13453f, #0b2a27 70%); }
+.p-packet i { position: absolute; width: 13%; aspect-ratio: 2/3; border-radius: 4px; background: linear-gradient(160deg, #d71d38, #940c22); box-shadow: 0 6px 12px rgba(0,0,0,.35); top: 30%; }
+.p-packet i::after { content: ""; position: absolute; left: 50%; top: 42%; width: 34%; aspect-ratio: 1; transform: translate(-50%,-50%); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fbe2a2, #e2b65c 50%, #9d7428); }
+.p-board { background: radial-gradient(120% 90% at 50% 0%, #3d1218, #2a0b10 60%); }
+.p-board .h { width: 84%; padding: 8px; border-radius: 6px; background: #1f1d1b; border: 2px solid #8a6a33; display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+.p-board .h span { aspect-ratio: 5/7; background: linear-gradient(180deg, #1d1c1b 50%, #121111 50%); color: #ffb547; font: 600 12px/1 "Arial Narrow", sans-serif; display: grid; place-items: center; border-radius: 2px; }
+.p-drum { background: radial-gradient(70% 80% at 45% 40%, #1e1812, #07060a 75%); }
+.p-drum .d { width: 42%; aspect-ratio: 1; border-radius: 50%; border: 3px solid #e6bc68; background: repeating-conic-gradient(rgba(230,188,104,.5) 0 2deg, transparent 2deg 20deg); position: relative; }
+.p-drum .d i { position: absolute; width: 17%; aspect-ratio: 1; border-radius: 50%; }
+.p-wheel { background: radial-gradient(80% 80% at 50% 50%, #241245, #0d0820 75%); }
+.p-wheel .w { width: 46%; aspect-ratio: 1; border-radius: 50%; border: 4px solid #f5d27a; background: conic-gradient(#e0475b 0 30deg, #f5d27a 0 60deg, #3b82c4 0 90deg, #2fa37a 0 120deg, #8e4fd0 0 150deg, #f08a3c 0 180deg, #e0475b 0 210deg, #f5d27a 0 240deg, #3b82c4 0 270deg, #2fa37a 0 300deg, #8e4fd0 0 330deg, #f08a3c 0); box-shadow: 0 0 0 6px #3a2366, 0 0 30px rgba(245,210,122,.4); }
+.p-wheel .pin { position: absolute; top: 9%; left: 50%; transform: translateX(-50%); border: 10px solid transparent; border-top: 18px solid #fff; }
+.p-fireworks { background: radial-gradient(90% 70% at 50% 100%, #10183a, #04060f 70%); }
+.p-fireworks i { position: absolute; width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.9) 0 2px, transparent 3px), repeating-conic-gradient(var(--c) 0 3deg, transparent 3deg 18deg);
+  -webkit-mask: radial-gradient(circle, transparent 18%, #000 20%, #000 60%, transparent 70%); mask: radial-gradient(circle, transparent 18%, #000 20%, #000 60%, transparent 70%); }
+.p-fireworks b { position: relative; font: 700 18px/1 var(--display); color: #ffe7a8; text-shadow: 0 0 12px #ffb14a; }
+.p-kinabalu { background: linear-gradient(180deg, #121430 0%, #4a2c45 52%, #d98e52 82%, #f1c27c 100%); }
+.p-kinabalu .sun { position: absolute; left: 52%; top: 46%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(closest-side, #fff5dc, rgba(255,214,140,.7) 35%, rgba(255,180,100,0) 100%); }
+.p-kinabalu .m { position: absolute; inset: 0; background: #0a0812; clip-path: polygon(0 100%, 0 86%, 14% 78%, 26% 66%, 33% 52%, 37% 56%, 40% 46%, 43% 50%, 46% 40%, 48% 46%, 51% 36%, 54% 34%, 57% 42%, 60% 44%, 62% 36%, 64% 46%, 68% 48%, 74% 60%, 84% 72%, 100% 82%, 100% 100%); }
+.p-agung { background: radial-gradient(70% 90% at 50% 30%, #3a2210 0%, #120a05 60%, #060403 100%); }
+.p-agung .g { width: 46%; aspect-ratio: 1; border-radius: 50%; margin-top: -6%;
+  background: radial-gradient(circle at 50% 50%, #ffe2a6 0 9%, #c48a45 11% 13%, #8a5a26 15%, #b07a3c 30%, #e2b06a 31% 32%, #9b6a30 34% 66%, #d9a560 67% 68%, #6e451c 70% 92%, #3a230d 94%);
+  box-shadow: 0 0 0 6px rgba(255,190,110,.10), 0 0 0 16px rgba(255,190,110,.05), 0 18px 40px rgba(0,0,0,.6); }
+.p-ballot { background: radial-gradient(60% 80% at 50% 40%, #16202e 0%, #070a10 70%); }
+.p-ballot::before { content: ""; position: absolute; left: 41%; right: 41%; top: 0; bottom: 30%; background: linear-gradient(180deg, rgba(255,240,210,0), rgba(255,240,210,.22)); clip-path: polygon(35% 0, 65% 0, 100% 100%, 0 100%); }
+.p-ballot .u { position: absolute; left: 50%; bottom: 8%; width: 30%; aspect-ratio: 1 / 1.05; transform: translateX(-50%); border-radius: 46% 46% 40% 40% / 50% 50% 40% 40%;
+  background: radial-gradient(60% 50% at 50% 62%, rgba(214,178,101,.55), rgba(214,178,101,.15) 60%, transparent 70%), linear-gradient(110deg, rgba(220,235,255,.28), rgba(220,235,255,.06) 40%, rgba(220,235,255,.22)); border: 1px solid rgba(220,235,255,.45); }
+.p-ballot i { position: absolute; left: 50%; top: 26%; width: 11%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff2c8, #d8b061 55%, #8a6326); box-shadow: 0 0 18px rgba(255,220,150,.6); }
+.p-proclamation { background: radial-gradient(80% 80% at 50% 45%, #3a1310 0%, #0d0505 75%); }
+.p-proclamation .sc { width: 66%; aspect-ratio: 1.6; display: grid; place-content: center; gap: 6%; text-align: center; background: linear-gradient(180deg, #f4ecd9, #e2d3b2); border-top: 6px solid #c9a052; border-bottom: 6px solid #c9a052; box-shadow: 0 10px 24px rgba(0,0,0,.5); }
+.p-proclamation .sc b { font: 600 8px/1 var(--sans, sans-serif); letter-spacing: .2em; text-transform: uppercase; color: #7a5c2a; }
+.p-proclamation .sc span { font: italic 600 clamp(14px, 1.6vw, 20px)/1 "Cormorant Garamond", Georgia, serif; color: #2a1b0c; }
+.p-proclamation i { position: absolute; right: 22%; bottom: 20%; width: 13%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f5d48a, #c38e3c 50%, #6b4813); box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+.p-maplight { background: radial-gradient(80% 80% at 50% 45%, #0e1a3a 0%, #030714 75%); }
+.p-maplight .mp { width: 64%; aspect-ratio: 1.45; border: 1.5px solid rgba(232,196,120,.85); filter: drop-shadow(0 0 6px rgba(255,205,120,.6));
+  clip-path: polygon(33% 0, 40% 18%, 48% 12%, 62% 30%, 72% 45%, 100% 55%, 88% 66%, 92% 86%, 70% 92%, 52% 96%, 14% 95%, 4% 80%, 0 66%, 16% 46%, 24% 26%); background: radial-gradient(2px 2px at 30% 50%, #ffe6b0, transparent), radial-gradient(2px 2px at 60% 60%, #ffe6b0, transparent), radial-gradient(2px 2px at 75% 70%, #ffe6b0, transparent), radial-gradient(2px 2px at 45% 80%, #ffe6b0, transparent), rgba(232,196,120,.08); }
+.p-maplight i { position: absolute; left: 30%; top: 46%; width: 7%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #fff3d0, rgba(255,210,130,.6) 40%, transparent 70%); }
+.p-pinakol { background: #0e0a08; }
+.p-pinakol .bw { position: absolute; inset: 0; background:
+  radial-gradient(circle, #e6b43a 2.2px, transparent 2.6px) 0 0 / 14px 14px,
+  conic-gradient(from 45deg at 50% 50%, #b3241f 0 25%, #141010 0 50%, #b3241f 0 75%, #141010 0) 0 0 / 56px 56px;
+  -webkit-mask: linear-gradient(90deg, #000 0 34%, transparent 34% 66%, #000 66%); mask: linear-gradient(90deg, #000 0 34%, transparent 34% 66%, #000 66%); }
+.p-pinakol b { position: relative; font: 700 clamp(14px, 1.6vw, 20px)/1 "Cormorant Garamond", Georgia, serif; color: #f6f0e4; }
+.p-galaxy { background: radial-gradient(60% 60% at 50% 50%, #3a1e5c 0%, #0b0618 60%, #020108 100%); }
+.p-galaxy::before { content: ""; position: absolute; inset: 0; background: radial-gradient(1px 1px at 20% 30%, #fff, transparent), radial-gradient(1px 1px at 70% 20%, #fff, transparent), radial-gradient(1.5px 1.5px at 40% 70%, #cfe, transparent), radial-gradient(1px 1px at 85% 65%, #fff, transparent), radial-gradient(1px 1px at 12% 80%, #fff, transparent), radial-gradient(1.5px 1.5px at 60% 45%, #ffd, transparent); }
+.p-galaxy .s { width: 62%; aspect-ratio: 2.2; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,240,210,.9), rgba(180,130,255,.35) 40%, transparent 72%); transform: rotate(-18deg); filter: blur(1px); }
+.p-cards { background: radial-gradient(90% 80% at 50% 50%, #0f4a35, #072619 75%); }
+.p-cards i { position: absolute; width: 18%; aspect-ratio: 5/7; border-radius: 6px; background: repeating-linear-gradient(45deg, #8c1d2b 0 4px, #6c1220 4px 8px); border: 3px solid #f6efe0; box-shadow: 0 6px 14px rgba(0,0,0,.4); top: 26%; }
+.p-cards i.f { background: #f6efe0; border-color: #d9b45a; transform: rotate(4deg) translateY(-8%); z-index: 2; }
+.p-scratch { background: linear-gradient(135deg, #f7f1e3, #e8dcc2); }
+.p-scratch .t { width: 72%; height: 58%; border-radius: 10px; background: #fffdf6; border: 2px dashed #b48a3c; position: relative; overflow: hidden; display: grid; place-items: center; font: 700 15px/1.1 var(--display); color: #6b1a1a; text-align: center; padding: 0 8%; }
+.p-scratch .t::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, #c9a24c, #f3dc9a 40%, #b38532 70%, #e8cb7c); clip-path: polygon(0 0, 100% 0, 100% 100%, 62% 100%, 70% 60%, 40% 52%, 30% 100%, 0 100%); }
+.p-lanterns { background: linear-gradient(180deg, #0b1030 0%, #2a1c4a 60%, #6b3a3a 100%); }
+.p-lanterns i { position: absolute; width: 7%; aspect-ratio: 3/4; border-radius: 40% 40% 30% 30%; background: radial-gradient(circle at 50% 70%, #fff3c2, #ffb347 45%, #d0602a); box-shadow: 0 0 16px rgba(255,170,70,.7); }
+.live { margin: 0 0 22px; padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(232,196,120,.28); }
+.live[data-state="on"] { border-color: rgba(232,196,120,.85); }
+.live .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.live input { padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(0,0,0,.25); color: inherit; font: inherit; min-width: 220px; }
+.live button { padding: 9px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.live button.primary { background: #e8c26a; color: #1a1408; border-color: transparent; font-weight: 700; }
+.live .msg { font-size: 14px; opacity: .85; }
+.live ol { margin: 6px 0 0; padding-left: 22px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Lucky Draw Studio · 10 designs</div>
+    <h1>Pick a new look for every draw</h1>
+    <p>Choose a design for each prize. All ten designs share the same names list and the same winners list, so a winner from one design is taken out of the next, whichever design you use.</p>
+  </header>
+
+  <section class="next" aria-label="Next draw">
+    <label for="prize">Prize for the next draw
+      <input id="prize" type="text" placeholder="e.g. Grand prize · 55-inch TV" autocomplete="off">
+    </label>
+    <div class="stat"><b id="left">0</b><span>names left</span></div>
+    <div class="stat"><b id="drawn">0</b><span>drawn</span></div>
+    <button id="surprise" class="primary" type="button">Surprise me</button>
+  </section>
+
+  <section class="live" id="live" aria-label="Live draws" data-state="off">
+    <div id="liveOut">
+      <form id="signin" class="row" autocomplete="on">
+        <input id="email" type="email" placeholder="Staff email" autocomplete="username" required>
+        <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="primary" type="submit">Sign in for live draws</button>
+      </form>
+    </div>
+    <div id="liveIn" hidden>
+      <div class="row"><b>Live draws</b> · event <code id="evName"></code> · signed in as <span id="who"></span> <button id="signout" type="button">Sign out</button></div>
+      <div class="row"><div class="prizeAdd" style="display:flex;gap:8px;flex-wrap:wrap"><input id="newPrize" type="text" placeholder="Add a prize (in draw order)" autocomplete="off"><button id="addPrize" type="button">Add prize</button></div></div>
+      <ol id="prizeList"></ol>
+    </div>
+    <p class="msg" id="liveStatus" role="status"></p>
+    <p class="msg" id="signinMsg" role="status"></p>
+    <p class="msg" id="liveMsg" role="status"></p>
+  </section>
+
+  <section aria-labelledby="dh">
+    <h2 id="dh">Designs</h2>
+    <div class="grid" id="grid"></div>
+    <p class="keys" style="margin-top:14px">On a design page: <kbd>Space</kbd> or a presenter clicker starts the draw · <kbd>F</kbd> full screen · <kbd>H</kbd> back here. Here: press <kbd>1</kbd>–<kbd>0</kbd> to open a design.</p>
+  </section>
+
+  <section class="panels">
+    <div class="panel">
+      <h2>Names</h2>
+      <p class="sub">One name per line. Duplicates are removed when you save.</p>
+      <textarea id="names" spellcheck="false" aria-label="Names, one per line"></textarea>
+      <label class="check"><input type="checkbox" id="removeWinners"> Take winners out of the next draws</label>
+      <div class="actions">
+        <button id="saveNames" class="primary" type="button">Save names</button>
+        <button id="sample" type="button">Use sample names</button>
+        <span class="saved" id="savedMsg">Saved</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Winners</h2>
+      <p class="sub">Every winner from every design, in order.</p>
+      <div class="tablewrap"><table><thead><tr><th>#</th><th>Name</th><th>Prize</th><th>Design</th><th>Time</th></tr></thead><tbody id="log"></tbody></table></div>
+      <p class="empty" id="emptyLog">No winners yet.</p>
+      <div class="actions">
+        <button id="copy" type="button">Copy list</button>
+        <button id="clear" class="danger" type="button">Clear winners</button>
+        <span class="saved" id="copiedMsg">Copied</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="core.js"></script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const INFO = {
+  reel:      { blurb: 'Names roll on a 3D reel framed by marquee bulbs, then the winner lifts toward the audience.', tags: ['3D', 'Music'], pv: '<div class="fr"><span>Chong Wei Liang</span><b>Kavitha Devi</b><span>Lim Jia Hui</span></div>' },
+  packet:    { blurb: 'Red packets shuffle on a jade table; one is chosen, opens, and the winner card slides out.', tags: ['Festive'], pv: '<i style="left:18%;transform:rotate(-8deg)"></i><i style="left:36%"></i><i style="left:53%"></i><i style="left:70%;transform:rotate(7deg)"></i>' },
+  board:     { blurb: 'An airport split-flap board clatters at random, then settles letter by letter on the name.', tags: ['Corporate'], pv: '<div class="h">' + [...('MOHD FIRDAUS' + '   HAKIMI   ')].map(c => `<span>${c.trim() ? c : ''}</span>`).join('') + '</div>' },
+  drum:      { blurb: 'A gold lottery drum tumbles its capsules; one rolls down the chute and opens.', tags: ['3D', 'Classic'], pv: '<div class="d"><i style="left:20%;top:58%;background:#d21f2c"></i><i style="left:42%;top:64%;background:#1f5fd1"></i><i style="left:60%;top:52%;background:#f2b630"></i><i style="left:34%;top:40%;background:#1c9a57"></i></div>' },
+  wheel:     { blurb: 'A carnival wheel of names spins with a ticking pointer and coasts to a stop.', tags: ['New', 'Game show'], pv: '<div class="w"></div><div class="pin"></div>' },
+  fireworks: { blurb: 'Rockets launch over a night skyline; the final burst gathers into the winner’s name.', tags: ['New', 'Night'], pv: '<i style="--c:#ffcf6b;left:12%;top:12%"></i><i style="--c:#ff6b8a;right:14%;top:20%"></i><i style="--c:#7fd3ff;left:42%;bottom:6%"></i><b>Jessica Valerie</b>' },
+  galaxy:    { blurb: 'Every name is a star in a turning galaxy; the camera warps to one and it blooms into the name.', tags: ['New', '3D'], pv: '<div class="s"></div>' },
+  cards:     { blurb: 'Name cards riffle-shuffle on green felt, deal out face down, and one turns over.', tags: ['New', 'Casino'], pv: '<i style="left:20%;transform:rotate(-10deg)"></i><i style="left:34%;transform:rotate(-3deg)"></i><i class="f" style="left:44%"></i><i style="left:60%;transform:rotate(9deg)"></i>' },
+  scratch:   { blurb: 'A giant gold scratch card is scratched away live to uncover the name. The host can scratch too.', tags: ['New', 'Interactive'], pv: '<div class="t">Puteri Nurul Izzah</div>' },
+  lanterns:  { blurb: 'Glowing sky lanterns rise at dusk; one drifts down to the front and unfurls a banner.', tags: ['New', 'Calm'], pv: '<i style="left:14%;top:22%"></i><i style="left:30%;top:50%;width:5%"></i><i style="left:48%;top:18%;width:9%"></i><i style="left:66%;top:42%"></i><i style="left:82%;top:16%;width:5%"></i>' },
+  kinabalu:  { blurb: 'Night over Mount Kinabalu. The first light strikes Low’s Peak, and the winner’s name is set in gold leaf across the dawn sky.', tags: ['New', '3D', 'Ceremonial'], pv: '<div class="sun"></div><div class="m"></div>' },
+  agung:     { blurb: 'A bronze agung under a single spotlight. Three strikes send rings of light across it, and the name rises from its boss.', tags: ['New', '3D', 'Ceremonial'], pv: '<div class="g"></div>' },
+  ballot:    { blurb: 'A crystal urn holds a gold token for every name. The hall dims, one token rises into a beam of light and turns to show its engraving.', tags: ['New', '3D', 'Ceremonial'], pv: '<div class="u"></div><i></i>' },
+  proclamation: { blurb: 'An ivory scroll unrolls on a lacquered table, the name is written in ink letter by letter, and a gold wax seal is pressed.', tags: ['New', 'Ceremonial'], pv: '<div class="sc"><b>Is hereby awarded to</b><span>Siti Nur Farhana</span></div><i></i>' },
+  maplight:  { blurb: 'Sabah drawn in gold light. Every entrant is a point across the state, and threads of light converge on Kota Kinabalu to form the name.', tags: ['New', 'Ceremonial'], pv: '<div class="mp"></div><i></i>' },
+  pinakol:   { blurb: 'A full-screen weave after Rungus beadwork. Names surface in gold beads, then the weave parts like a curtain to reveal the winner.', tags: ['New', 'Heritage'], pv: '<div class="bw"></div><b>Woven</b>' },
+  wall:      { blurb: 'Every entrant is engraved on a dark wall. A beam of light travels the panels, slows, and stops on one, which lifts forward and is set in gold leaf.', tags: ['New', 'Ceremonial'], pv: '<div style="position:absolute;inset:14% 12%;display:grid;grid-template-columns:repeat(6,1fr);gap:4px">' + '<i style="position:static;display:block;width:auto;height:auto;aspect-ratio:1.6;border-radius:2px;background:#1f1a25;border:1px solid #3d3446"></i>'.repeat(11) + '<i style="position:static;display:block;width:auto;height:auto;aspect-ratio:1.6;border-radius:2px;background:#d6b46a;box-shadow:0 0 12px 2px rgba(255,200,110,.6)"></i></div>' },
+  lamps:     { blurb: 'A row of brass lamps recedes down a dark hall. One flame passes along the row and comes to rest on the last lamp, where the name rises.', tags: ['New', 'Ceremonial'], pv: '<i style="left:24%;top:66%;width:5%;background:#6b4b1f"></i><i style="left:44%;top:57%;width:4%;background:#f3b24e;box-shadow:0 0 16px 6px rgba(243,178,78,.55)"></i><i style="left:66%;top:48%;width:3%;background:#f3b24e;box-shadow:0 0 22px 9px rgba(243,178,78,.7)"></i>' },
+  rain:      { blurb: 'Rain runs down a dark window. The drops join one another until a single drop is left, and its name comes into focus.', tags: ['New', 'Quiet'], pv: '<i style="left:20%;top:24%;width:6%;background:#8fb1c6"></i><i style="left:58%;top:18%;width:5%;background:#8fb1c6"></i><i style="left:40%;top:52%;width:16%;background:rgba(143,177,198,.25);border:1px solid rgba(246,227,173,.9)"></i>' },
+  orchid:    { blurb: 'An orchid opens petal by petal from a closed bud, and the winner’s name is set into its centre.', tags: ['New', 'Ceremonial'], pv: '<i style="left:30%;top:20%;width:40%;background:radial-gradient(circle at 50% 60%,#fbf3e4,#d9b2a0);box-shadow:0 0 0 1px rgba(214,180,106,.6)"></i><i style="left:44%;top:44%;width:12%;background:#e3c27e"></i>' },
+  sundial:   { blurb: 'A brass sundial with every entrant on its rim. A shadow turns, slows across the marks and rests on the winner.', tags: ['New', 'Ceremonial'], pv: '<i style="left:24%;top:14%;width:52%;background:radial-gradient(circle at 40% 35%,#f1d28a,#8f6a2c 60%,#4a3314)"></i><i style="left:49%;top:45%;width:3%;background:#fbe6b0"></i>' },
+  foundry:   { blurb: 'Molten gold is poured into a sand mould of the winner’s name, cools, and the cast plate is lifted into the light.', tags: ['New', 'Keepsake'], pv: '<i style="left:24%;top:68%;width:52%;height:14%;border-radius:3px;background:linear-gradient(180deg,#fff0b8,#e2b25c 45%,#9a6a24)"></i><i style="left:42%;top:30%;width:6%;height:30%;border-radius:3px;background:linear-gradient(90deg,#ffe49a,#ff9a3c)"></i>' }
+};
+let s = LD.load();
+function render() {
+  s = LD.load();
+  const left = LD.pool(s).length;
+  $('left').textContent = left; $('drawn').textContent = s.log.length;
+  if (!$('prize').disabled && document.activeElement !== $('prize')) $('prize').value = s.prize;
+  $('removeWinners').checked = s.removeWinners;
+  const lastDesign = s.log.length ? s.log[s.log.length - 1].design : '';
+  $('grid').replaceChildren(...LD.DESIGNS.map((d, i) => {
+    const info = INFO[d.id], used = s.used[d.id] || 0;
+    const a = document.createElement('a'); a.className = 'card'; a.href = `designs/${d.id}.html`; a.dataset.id = d.id;
+    const tags = info.tags.map(t => `<span class="tag${t === 'New' ? ' new' : ''}">${t}</span>`).join('') +
+      (used ? `<span class="tag used">Used ${used}×${d.id === lastDesign ? ' · last' : ''}</span>` : '<span class="tag fresh">Not used yet</span>');
+    a.innerHTML = `<div class="pv p-${d.id}" aria-hidden="true">${info.pv}</div><div class="meta"><div class="row"><h3>${d.title}</h3>${i < 10 ? `<kbd>${(i + 1) % 10}</kbd>` : ''}</div><p>${info.blurb}</p><div class="tags">${tags}</div></div>`;
+    return a;
+  }));
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const title = id => (LD.DESIGNS.find(d => d.id === id) || { title: id || '—' }).title;
+  $('log').innerHTML = s.log.map((w, i) => `<tr><td class="num">${i + 1}</td><td class="name">${esc(w.name)}</td><td>${esc(w.prize || '—')}</td><td class="small">${esc(title(w.design))}</td><td class="small">${new Date(w.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td></tr>`).join('');
+  $('emptyLog').hidden = s.log.length > 0;
+}
+$('names').value = s.names.join('\n');
+render();
+
+const flash = id => { $(id).classList.add('show'); setTimeout(() => $(id).classList.remove('show'), 1400); };
+$('prize').addEventListener('input', e => LD.save({ prize: e.target.value.trim() }));
+$('removeWinners').addEventListener('change', e => { LD.save({ removeWinners: e.target.checked }); render(); });
+$('saveNames').addEventListener('click', async () => {
+  if (LD.live.state() === 'on') {
+    const btn = $('saveNames'); btn.disabled = true;
+    try {
+      const n = await LD.live.addNames($('names').value.split('\n'));
+      $('names').value = '';
+      $('liveMsg').textContent = n ? `${n} name${n === 1 ? '' : 's'} added to the event.` : 'No new names: they were all already in the event.';
+    } catch (err) { $('liveMsg').textContent = 'Could not save the names: ' + (err.message || err); }
+    finally { btn.disabled = false; }
+    return;
+  }
+  const names = [...new Set($('names').value.split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean))];
+  LD.save({ names }); $('names').value = names.join('\n'); render(); flash('savedMsg');
+});
+$('sample').addEventListener('click', () => { $('names').value = LD.SAMPLE.join('\n'); });
+
+// ---- live draws: staff sign-in (see core.js) ----
+const LIVE_TEXT = {
+  checking: 'Checking sign-in…',
+  off: 'Demo mode: draws use the demo names and nothing is saved to the event. Sign in to draw for real.',
+  connecting: 'Connecting to the event…',
+  on: 'LIVE: every draw is saved to the event before its winner is shown.'
+};
+const AUTH_TEXT = {
+  'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.',
+  'auth/user-not-found': 'Wrong email or password.', 'auth/invalid-email': 'Enter a valid email address.',
+  'auth/too-many-requests': 'Too many attempts. Wait a minute and try again.', 'auth/network-request-failed': 'No internet connection.'
+};
+let liveMode = null;
+function renderLive() {
+  const st = LD.live.state(), user = LD.live.user(), isLive = st === 'on';
+  $('live').dataset.state = st;
+  $('liveOut').hidden = !!user; $('liveIn').hidden = !user;
+  if (user) $('who').textContent = user.email || 'staff account';
+  $('evName').textContent = LD.live.event;
+  $('liveStatus').textContent = st === 'off' ? (LD.live.message() || LIVE_TEXT.off) : (LIVE_TEXT[st] || LD.live.message());
+  $('prize').disabled = isLive;
+  if (isLive) { const nx = LD.live.nextPrize(); $('prize').value = nx ? nx.name : 'No prize left to draw'; }
+  $('removeWinners').closest('label').hidden = isLive;
+  $('sample').hidden = isLive;
+  $('saveNames').textContent = isLive ? 'Add names to the event' : 'Save names';
+  $('names').placeholder = isLive ? 'Paste names to add to the event, one per line. Names already in the event are skipped.' : '';
+  if (liveMode !== isLive) { liveMode = isLive; $('names').value = isLive ? '' : s.names.join('\n'); }
+  if (user) {
+    const winners = LD.live.winners(), next = LD.live.nextPrize();
+    $('prizeList').replaceChildren(...LD.live.prizes().map(p => {
+      const li = document.createElement('li'), w = winners[p.id];
+      li.textContent = `${p.order}. ${p.name} — ${w && w.status === 'active' ? 'won by ' + w.name : next && next.id === p.id ? 'next draw' : 'waiting'}`;
+      return li;
+    }));
+  }
+}
+$('signin').addEventListener('submit', async e => {
+  e.preventDefault(); $('signinMsg').textContent = 'Signing in…';
+  try { await LD.live.signIn($('email').value, $('pw').value); $('pw').value = ''; $('signinMsg').textContent = ''; }
+  catch (err) { $('signinMsg').textContent = AUTH_TEXT[err.code] || 'Could not sign in. Check the connection and try again.'; }
+});
+$('signout').addEventListener('click', async () => { await LD.live.signOut(); $('signinMsg').textContent = ''; });
+$('addPrize').addEventListener('click', async () => {
+  if (!$('newPrize').value.trim()) return;
+  try { await LD.live.addPrize($('newPrize').value); $('newPrize').value = ''; $('liveMsg').textContent = 'Prize added.'; }
+  catch (err) { $('liveMsg').textContent = 'Could not add the prize: ' + (err.message || err); }
+});
+LD.live.onChange(() => { render(); renderLive(); });
+renderLive();
+let armed = null;
+$('clear').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Press again to clear'; clearTimeout(armed); armed = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Clear winners'; }, 3000); return; }
+  clearTimeout(armed); b.classList.remove('armed'); b.textContent = 'Clear winners'; LD.save({ winners: [] }); render();
+});
+$('copy').addEventListener('click', async () => {
+  const title = id => (LD.DESIGNS.find(d => d.id === id) || { title: id }).title;
+  const text = s.log.map((w, i) => `${i + 1}. ${w.name}${w.prize ? ' — ' + w.prize : ''} (${title(w.design)})`).join('\n');
+  try { await navigator.clipboard.writeText(text || 'No winners yet'); flash('copiedMsg'); } catch (err) {}
+});
+// Surprise me: a random design among the least-used ones, never the one used last
+$('surprise').addEventListener('click', () => {
+  const last = s.log.length ? s.log[s.log.length - 1].design : '';
+  let cands = LD.DESIGNS.filter(d => d.id !== last);
+  const min = Math.min(...cands.map(d => s.used[d.id] || 0));
+  cands = cands.filter(d => (s.used[d.id] || 0) === min);
+  const d = LD.pick(cands), card = document.querySelector(`.card[data-id="${d.id}"]`);
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.add('pulse');
+  setTimeout(() => { location.href = card.href; }, LD.reduced ? 200 : 1300);
+});
+addEventListener('keydown', e => {
+  if (/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (/^[0-9]$/.test(e.key)) { const d = LD.DESIGNS[(+e.key + 9) % 10]; location.href = `designs/${d.id}.html`; }
+});
+// stay in step when a design page is used in another tab
+addEventListener('storage', e => { if (e.key === LD.KEY) render(); });
+addEventListener('pageshow', render);
+})();
+</script>
+</body>
+</html>

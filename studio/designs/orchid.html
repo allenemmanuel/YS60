@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en" data-design="orchid">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Orchid Bloom · Lucky Draw</title>
+<link rel="stylesheet" href="../vendor/fonts/orchid.css">
+<link rel="stylesheet" href="ui.css">
+<style>
+/* Layout: one orchid in a dark room. It starts as a closed bud; its petals open in turn from the base outward, and the
+   centre lifts toward the audience as the winner's name is set into the flower. */
+:root { --bg: #08070b; --ink: #f4e6c2; --muted: #b8a6a0; --accent: #e3c27e; --accent-2: #9b7330; --btn-ink: #1d1407;
+  --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --body: "Manrope", "Segoe UI", system-ui, sans-serif; }
+body { background: radial-gradient(70% 60% at 50% 42%, #2c1d2a 0%, #08070b 75%); }
+#stage { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); width: min(54vh, 76vw, 460px); aspect-ratio: 1; }
+#flower { width: 100%; height: 100%; display: block; overflow: visible; }
+/* a fixed-size box under the flower: fitText shrinks the name to fit it, and it always stays on screen */
+#nameBox { position: absolute; left: 50%; margin-left: -46vw; width: 92vw; top: 100%; height: 16vh; opacity: 0; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; }
+#name { font-family: var(--display); font-weight: 600; line-height: 1.05; color: #f4e6c2; max-width: 100%; overflow-wrap: anywhere; }
+#lbl { margin: 0 0 6px; font: 600 10px/1 var(--body); letter-spacing: .34em; text-transform: uppercase; color: #b39a6c; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="flower" viewBox="0 0 400 400" aria-hidden="true">
+    <defs>
+      <radialGradient id="pet" cx=".5" cy=".92" r=".9"><stop offset="0" stop-color="#fff8ea"/><stop offset=".7" stop-color="#f1d9c6"/><stop offset="1" stop-color="#d9a9a0"/></radialGradient>
+      <radialGradient id="sep" cx=".5" cy=".92" r=".9"><stop offset="0" stop-color="#e9c2c0"/><stop offset="1" stop-color="#a9687a"/></radialGradient>
+    </defs>
+    <g id="sepals" fill="url(#sep)" stroke="#d6b46a" stroke-opacity=".6" stroke-width="1.2">
+      <path d="M200 200 C 140 172, 128 96, 200 18 C 272 96, 260 172, 200 200 Z"/>
+      <path d="M200 200 C 140 172, 128 96, 200 18 C 272 96, 260 172, 200 200 Z"/>
+      <path d="M200 200 C 140 172, 128 96, 200 18 C 272 96, 260 172, 200 200 Z"/>
+    </g>
+    <g id="petals" fill="url(#pet)" stroke="#d6b46a" stroke-opacity=".75" stroke-width="1.2">
+      <path d="M200 200 C 160 176, 150 110, 200 44 C 250 110, 240 176, 200 200 Z"/>
+      <path d="M200 200 C 160 176, 150 110, 200 44 C 250 110, 240 176, 200 200 Z"/>
+      <path d="M200 200 C 160 176, 150 110, 200 44 C 250 110, 240 176, 200 200 Z"/>
+      <path d="M200 200 C 160 176, 150 110, 200 44 C 250 110, 240 176, 200 200 Z"/>
+      <path d="M200 200 C 160 176, 150 110, 200 44 C 250 110, 240 176, 200 200 Z"/>
+    </g>
+    <g id="lip">
+      <circle cx="200" cy="200" r="22" fill="#e3c27e"/>
+      <circle cx="200" cy="200" r="10" fill="#7a4e1c"/>
+    </g>
+  </svg>
+  <div id="nameBox"><p id="lbl">The centre opens</p><div id="name"></div></div>
+</div>
+
+<div class="ui top"><div><h1 data-ld-prize>Lucky Draw</h1><p id="meta"></p></div><button id="soundBtn" class="ghost" type="button">Sound on</button></div>
+<div class="ui bottom"><div class="controls"><button id="draw" type="button">Bloom</button><button id="reset" class="ghost" type="button" hidden>New draw</button></div><p class="hint" id="hint"></p></div>
+<div id="result" class="sr" role="status" aria-live="polite"></div>
+
+<script src="../core.js"></script>
+<script type="importmap">
+{ "imports": { "gsap": "../vendor/gsap/index.js", "gsap/": "../vendor/gsap/" } }
+</script>
+<script type="module">
+import { gsap } from 'gsap';
+const $ = id => document.getElementById(id);
+const sepals = [...document.querySelectorAll('#sepals path')], petals = [...document.querySelectorAll('#petals path')];
+const lip = $('lip'), flower = $('flower'), nameBox = $('nameBox'), nameEl = $('name');
+const O = '200 200';
+// bud: every petal is folded close to the stem; the open rotations spread them evenly
+const budPetal = i => (i - 2) * 14, openPetal = i => i * 72;
+const budSepal = i => (i - 1) * 12, openSepal = i => 36 + i * 120;
+
+function setBud() {
+  gsap.set(flower, { scale: 0.92, rotation: 0 });
+  gsap.set(sepals, { svgOrigin: O, rotation: budSepal, scale: 0.6 });
+  gsap.set(petals, { svgOrigin: O, rotation: budPetal, scale: 0.5 });
+  gsap.set(lip, { svgOrigin: O, scale: 0.7 });
+}
+setBud();
+
+LD.stage({
+  accent: '#e3c27e', drawingHint: 'The orchid is opening…',
+  async draw(winner) {
+    nameEl.textContent = winner; LD.fitText(nameEl, { max: 52, min: 16 });
+    const tl = gsap.timeline();
+    tl.to(flower, { scale: 1, duration: 1.4, ease: 'sine.inOut' }, 0)
+      .to(flower, { scale: 1.015, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 1.4)
+      .to(sepals, { rotation: openSepal, scale: 1, duration: 1.6, ease: 'back.out(1.2)', stagger: 0.22 }, 1.0)
+      .add(() => LD.snd.tone(523.25, 2.2, 0.02, 'sine'), 1.2)
+      .to(petals, { rotation: openPetal, scale: 1, duration: 1.8, ease: 'back.out(1.25)', stagger: 0.32 }, 2.6)
+      .to(lip, { scale: 1.25, duration: 1.4, ease: 'power2.out' }, 6.2)
+      .fromTo(nameBox, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1.6, ease: 'sine.out' }, 7.2)
+      .add(() => LD.snd.chime(), 7.4);
+    if (LD.reduced) tl.progress(1);
+    return tl.then(() => {});
+  },
+  async reset() {
+    const tl = gsap.timeline();
+    tl.to(nameBox, { opacity: 0, y: 0, duration: 0.6, ease: 'sine.out' }, 0)
+      .to(petals, { rotation: budPetal, scale: 0.5, duration: 1.4, ease: 'sine.inOut', stagger: 0.1 }, 0.2)
+      .to(sepals, { rotation: budSepal, scale: 0.6, duration: 1.4, ease: 'sine.inOut', stagger: 0.1 }, 0.3)
+      .to(lip, { scale: 0.7, duration: 1.0, ease: 'sine.inOut' }, 0.2);
+    if (LD.reduced) tl.progress(1);
+    return tl.then(() => {});
+  }
+});
+</script>
+</body>
+</html>
