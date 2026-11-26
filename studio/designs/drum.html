@@ -75,7 +75,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 <div id="stage"></div>
 <div id="loading">SETTING THE STAGE…</div>
 <div class="ui top"><h1 data-ld-prize>LUCKY DRAW</h1><p id="count">Grand prize draw</p></div>
-<button id="namesBtn" class="ghost" type="button" aria-controls="drawer" aria-expanded="false">NAMES</button>
 <div id="result" role="status" aria-live="polite"><div class="lbl">And the winner is</div><div class="name" id="winName">—</div></div>
 <div class="ui bottom">
   <div class="controls">
@@ -85,17 +84,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
   <p class="hint" id="hint">Drag to orbit · scroll or pinch to zoom</p>
 </div>
 
-<aside id="drawer" aria-label="Names in the draw">
-  <header><h2>NAMES</h2><button id="closeDrawer" class="ghost" type="button">CLOSE</button></header>
-  <label class="cap" for="names">One name per line. The list below is a sample, so replace it with your own.</label>
-  <textarea id="names" spellcheck="false"></textarea>
-  <label class="row" for="removeWinners"><input type="checkbox" id="removeWinners" checked> Take winners out of the next draws</label>
-  <div class="drawer-actions">
-    <button id="saveNames" type="button">SAVE NAMES</button>
-    <button id="clearWinners" class="ghost" type="button">CLEAR WINNERS</button>
-  </div>
-  <div class="winners" id="winnersBox" hidden><h3>WINNERS SO FAR</h3><ol id="winnersList"></ol></div>
-</aside>
 
 <script src="../core.js"></script>
 <script type="importmap">
@@ -375,39 +363,21 @@ function drawCard(name) {
 }
 
 // ---------- names ----------
-const LS = LD.load(); LD.demoOnly();
-let names = LS.names, winners = LS.winners, removeWinners = LS.removeWinners, soundOn = LS.soundOn, musicOn = LS.musicOn;
-const persist = () => LD.save({ names, winners, removeWinners, soundOn, musicOn });
-const drawPool = () => removeWinners ? names.filter(n => !winners.includes(n)) : names.slice();
+// names: the live event is the only source (see core.js)
+let soundOn = LD.load().soundOn, musicOn = LD.load().musicOn;
+const persist = () => LD.save({ soundOn, musicOn });
+const drawPool = () => LD.pool();
+const winnerCount = () => Object.values(LD.live.winners()).filter(w => w && w.status === 'active').length;
 
-const drawerEl = document.getElementById('drawer'), namesBtn = document.getElementById('namesBtn'), namesEl = document.getElementById('names');
-const removeEl = document.getElementById('removeWinners'), countEl = document.getElementById('count');
-const winnersBox = document.getElementById('winnersBox'), winnersList = document.getElementById('winnersList');
+const countEl = document.getElementById('count');
 function renderNamesUI() {
-  const p = drawPool().length;
+  const p = drawPool().length, live = LD.live.state() === 'on';
   countEl.textContent = p === 1 ? '1 name in the draw' : `${p} names in the draw`;
-  namesBtn.textContent = `NAMES · ${names.length}`;
-  winnersBox.hidden = winners.length === 0;
-  winnersList.replaceChildren(...winners.map(w => Object.assign(document.createElement('li'), { textContent: w })));
-  removeEl.checked = removeWinners;
   if (state === 'idle') {
-    spinBtn.disabled = p === 0;
-    hintEl.textContent = p === 0 ? 'Add names to start the draw' : 'Drag to orbit · scroll or pinch to zoom';
+    spinBtn.disabled = !live || p === 0;
+    hintEl.textContent = !live ? 'Sign in on the hub to draw' : p === 0 ? 'No names left to draw' : 'Drag to orbit · scroll or pinch to zoom';
   }
 }
-function openDrawer(open) {
-  drawerEl.classList.toggle('open', open); namesBtn.setAttribute('aria-expanded', String(open));
-  if (open) { namesEl.value = names.join('\n'); namesEl.focus(); }
-}
-namesBtn.addEventListener('click', () => openDrawer(!drawerEl.classList.contains('open')));
-document.getElementById('closeDrawer').addEventListener('click', () => openDrawer(false));
-document.getElementById('saveNames').addEventListener('click', () => {
-  names = [...new Set(namesEl.value.split('\n').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean))];
-  persist(); renderNamesUI(); openDrawer(false);
-});
-document.getElementById('clearWinners').addEventListener('click', () => { winners = []; persist(); renderNamesUI(); });
-removeEl.addEventListener('change', () => { removeWinners = removeEl.checked; persist(); renderNamesUI(); });
-addEventListener('keydown', e => { if (e.key === 'Escape') openDrawer(false); });
 
 // ---------- background bokeh ----------
 const bokehTex = (() => {
@@ -519,20 +489,19 @@ const ease = x => x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3) / 2;
 let rolling = false; // names roll before the drum spins up
 spinBtn.addEventListener('click', async () => {
   const p = drawPool();
-  if (rolling || state !== 'idle' || p.length === 0) return;
-  rolling = true; spinBtn.disabled = true; namesBtn.disabled = true;
-  winnerName = LD.pick(p);
-  await LD.nameRoll(p, { minMs: reduced ? 1200 : 2800 });
+  if (rolling || state !== 'idle' || LD.live.state() !== 'on' || p.length === 0) return;
+  rolling = true; spinBtn.disabled = true; hintEl.textContent = 'Saving the draw…';
+  try { winnerName = (await LD.nameRoll(p, { minMs: reduced ? 1200 : 2800, until: LD.live.draw() })).name; }
+  catch (err) { console.error(err); rolling = false; renderNamesUI(); hintEl.textContent = err.message || 'The draw was not saved.'; return; }
   rolling = false;
   drawCard(winnerName);
-  openDrawer(false);
   state = 'spinup'; t = 0; controls.autoRotate = false;
   for (const b of balls) if (b.active) b.v.y += 1.5 + Math.random() * 2; // jolt
 });
 resetBtn.addEventListener('click', () => {
   if (winner) { winner.mesh.removeFromParent(); drumRoot.add(winner.mesh); closeCapsule(winner.mesh); winner.active = true; placeInside(winner, winner.n - 1); winner.p.y = 0.2; winner.mesh.position.copy(winner.p); }
   winner = null; card.visible = false; resultEl.classList.remove('show');
-  resetBtn.hidden = true; namesBtn.disabled = false;
+  resetBtn.hidden = true;
   camFrom = { p: camera.position.clone(), t: controls.target.clone() }; camTo = { p: HOME_POS.clone(), t: HOME_TARGET.clone() };
   state = 'return'; t = 0; controls.enabled = false;
   renderNamesUI(); spinBtn.disabled = true;
@@ -582,7 +551,6 @@ function showWinner() {
   winNameEl.classList.toggle('xlong', winnerName.length > 48);
   resultEl.classList.add('show');
   hintEl.textContent = 'Press Reset to draw again';
-  if (!winners.includes(winnerName)) winners.push(winnerName);
   persist(); renderNamesUI();
 }
 

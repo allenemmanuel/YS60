@@ -157,7 +157,7 @@ td.small { color: var(--muted); font-size: 13px; white-space: nowrap; }
 
   <section class="next" aria-label="Next draw">
     <label for="prize">Prize for the next draw
-      <input id="prize" type="text" placeholder="e.g. Grand prize · 55-inch TV" autocomplete="off">
+      <input id="prize" type="text" readonly placeholder="Sign in to see the next prize" autocomplete="off">
     </label>
     <div class="stat"><b id="left">0</b><span>names left</span></div>
     <div class="stat"><b id="drawn">0</b><span>drawn</span></div>
@@ -167,7 +167,6 @@ td.small { color: var(--muted); font-size: 13px; white-space: nowrap; }
   <section class="live" id="live" aria-label="Live draws" data-state="off">
     <div id="liveOut">
       <form id="signin" class="row" autocomplete="on">
-        <input id="email" type="email" placeholder="Staff email" autocomplete="username" required>
         <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
         <button class="primary" type="submit">Sign in for live draws</button>
       </form>
@@ -191,23 +190,20 @@ td.small { color: var(--muted); font-size: 13px; white-space: nowrap; }
   <section class="panels">
     <div class="panel">
       <h2>Names</h2>
-      <p class="sub">One name per line. Duplicates are removed when you save.</p>
+      <p class="sub">One name per line. Names already in the event are skipped.</p>
       <textarea id="names" spellcheck="false" aria-label="Names, one per line"></textarea>
-      <label class="check"><input type="checkbox" id="removeWinners"> Take winners out of the next draws</label>
       <div class="actions">
         <button id="saveNames" class="primary" type="button">Save names</button>
-        <button id="sample" type="button">Use sample names</button>
         <span class="saved" id="savedMsg">Saved</span>
       </div>
     </div>
     <div class="panel">
       <h2>Winners</h2>
-      <p class="sub">Every winner from every design, in order.</p>
-      <div class="tablewrap"><table><thead><tr><th>#</th><th>Name</th><th>Prize</th><th>Design</th><th>Time</th></tr></thead><tbody id="log"></tbody></table></div>
+      <p class="sub">Every winner in the event, in draw order.</p>
+      <div class="tablewrap"><table><thead><tr><th>#</th><th>Name</th><th>Prize</th><th>Time</th></tr></thead><tbody id="log"></tbody></table></div>
       <p class="empty" id="emptyLog">No winners yet.</p>
       <div class="actions">
         <button id="copy" type="button">Copy list</button>
-        <button id="clear" class="danger" type="button">Clear winners</button>
         <span class="saved" id="copiedMsg">Copied</span>
       </div>
     </div>
@@ -242,76 +238,64 @@ const INFO = {
   sundial:   { blurb: 'A brass sundial with every entrant on its rim. A shadow turns, slows across the marks and rests on the winner.', tags: ['New', 'Ceremonial'], pv: '<i style="left:24%;top:14%;width:52%;background:radial-gradient(circle at 40% 35%,#f1d28a,#8f6a2c 60%,#4a3314)"></i><i style="left:49%;top:45%;width:3%;background:#fbe6b0"></i>' },
   foundry:   { blurb: 'Molten gold is poured into a sand mould of the winner’s name, cools, and the cast plate is lifted into the light.', tags: ['New', 'Keepsake'], pv: '<i style="left:24%;top:68%;width:52%;height:14%;border-radius:3px;background:linear-gradient(180deg,#fff0b8,#e2b25c 45%,#9a6a24)"></i><i style="left:42%;top:30%;width:6%;height:30%;border-radius:3px;background:linear-gradient(90deg,#ffe49a,#ff9a3c)"></i>' }
 };
-let s = LD.load();
-function render() {
-  s = LD.load();
-  const left = LD.pool(s).length;
-  $('left').textContent = left; $('drawn').textContent = s.log.length;
-  if (!$('prize').disabled && document.activeElement !== $('prize')) $('prize').value = s.prize;
-  $('removeWinners').checked = s.removeWinners;
-  const lastDesign = s.log.length ? s.log[s.log.length - 1].design : '';
-  $('grid').replaceChildren(...LD.DESIGNS.map((d, i) => {
-    const info = INFO[d.id], used = s.used[d.id] || 0;
-    const a = document.createElement('a'); a.className = 'card'; a.href = `designs/${d.id}.html`; a.dataset.id = d.id;
-    const tags = info.tags.map(t => `<span class="tag${t === 'New' ? ' new' : ''}">${t}</span>`).join('') +
-      (used ? `<span class="tag used">Used ${used}×${d.id === lastDesign ? ' · last' : ''}</span>` : '<span class="tag fresh">Not used yet</span>');
-    a.innerHTML = `<div class="pv p-${d.id}" aria-hidden="true">${info.pv}</div><div class="meta"><div class="row"><h3>${d.title}</h3>${i < 10 ? `<kbd>${(i + 1) % 10}</kbd>` : ''}</div><p>${info.blurb}</p><div class="tags">${tags}</div></div>`;
-    return a;
-  }));
-  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const title = id => (LD.DESIGNS.find(d => d.id === id) || { title: id || '—' }).title;
-  $('log').innerHTML = s.log.map((w, i) => `<tr><td class="num">${i + 1}</td><td class="name">${esc(w.name)}</td><td>${esc(w.prize || '—')}</td><td class="small">${esc(title(w.design))}</td><td class="small">${new Date(w.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td></tr>`).join('');
-  $('emptyLog').hidden = s.log.length > 0;
-}
-$('names').value = s.names.join('\n');
-render();
-
 const flash = id => { $(id).classList.add('show'); setTimeout(() => $(id).classList.remove('show'), 1400); };
-$('prize').addEventListener('input', e => LD.save({ prize: e.target.value.trim() }));
-$('removeWinners').addEventListener('change', e => { LD.save({ removeWinners: e.target.checked }); render(); });
-$('saveNames').addEventListener('click', async () => {
-  if (LD.live.state() === 'on') {
-    const btn = $('saveNames'); btn.disabled = true;
-    try {
-      const n = await LD.live.addNames($('names').value.split('\n'));
-      $('names').value = '';
-      $('liveMsg').textContent = n ? `${n} name${n === 1 ? '' : 's'} added to the event.` : 'No new names: they were all already in the event.';
-    } catch (err) { $('liveMsg').textContent = 'Could not save the names: ' + (err.message || err); }
-    finally { btn.disabled = false; }
-    return;
-  }
-  const names = [...new Set($('names').value.split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean))];
-  LD.save({ names }); $('names').value = names.join('\n'); render(); flash('savedMsg');
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Design cards
+$('grid').replaceChildren(...LD.DESIGNS.map((d, i) => {
+  const info = INFO[d.id];
+  const a = document.createElement('a'); a.className = 'card'; a.href = `designs/${d.id}.html`; a.dataset.id = d.id;
+  const tags = info.tags.map(t => `<span class="tag${t === 'New' ? ' new' : ''}">${t}</span>`).join('');
+  a.innerHTML = `<div class="pv p-${d.id}" aria-hidden="true">${info.pv}</div><div class="meta"><div class="row"><h3>${d.title}</h3>${i < 10 ? `<kbd>${(i + 1) % 10}</kbd>` : ''}</div><p>${info.blurb}</p><div class="tags">${tags}</div></div>`;
+  return a;
+}));
+
+// Winners and stats come from the event (live only)
+function winnerRows() {
+  const winners = LD.live.winners();
+  return LD.live.prizes().filter(p => winners[p.id]?.status === 'active').map((p, i) => ({ n: i + 1, name: winners[p.id].name, prize: p.name, at: winners[p.id].drawnAt }));
+}
+function renderDraw() {
+  const on = LD.live.state() === 'on', rows = winnerRows();
+  $('left').textContent = on ? LD.pool().length : '—';
+  $('drawn').textContent = rows.length;
+  $('emptyLog').hidden = rows.length > 0;
+  $('log').innerHTML = rows.map(r => `<tr><td class="num">${r.n}</td><td class="name">${esc(r.name)}</td><td>${esc(r.prize || '—')}</td><td class="small">${r.at ? new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</td></tr>`).join('');
+}
+$('copy').addEventListener('click', async () => {
+  const text = winnerRows().map(r => `${r.n}. ${r.name}${r.prize ? ' — ' + r.prize : ''}`).join('\n');
+  try { await navigator.clipboard.writeText(text || 'No winners yet'); flash('copiedMsg'); } catch (err) {}
 });
-$('sample').addEventListener('click', () => { $('names').value = LD.SAMPLE.join('\n'); });
+$('saveNames').addEventListener('click', async () => {
+  if (LD.live.state() !== 'on') { $('liveMsg').textContent = 'Sign in first to add names to the event.'; return; }
+  const btn = $('saveNames'); btn.disabled = true;
+  try {
+    const n = await LD.live.addNames($('names').value.split('\n'));
+    $('names').value = '';
+    $('liveMsg').textContent = n ? `${n} name${n === 1 ? '' : 's'} added to the event.` : 'No new names: they were all already in the event.';
+  } catch (err) { $('liveMsg').textContent = 'Could not save the names: ' + (err.message || err); }
+  finally { btn.disabled = false; }
+});
 
 // ---- live draws: staff sign-in (see core.js) ----
 const LIVE_TEXT = {
-  checking: 'Checking sign-in…',
-  off: 'Demo mode: draws use the demo names and nothing is saved to the event. Sign in to draw for real.',
+  checking: 'Checking the event database…',
+  off: 'Sign in to draw. Every draw is saved to the event before its winner is shown.',
   connecting: 'Connecting to the event…',
   on: 'LIVE: every draw is saved to the event before its winner is shown.'
 };
-const AUTH_TEXT = {
-  'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.',
-  'auth/user-not-found': 'Wrong email or password.', 'auth/invalid-email': 'Enter a valid email address.',
-  'auth/too-many-requests': 'Too many attempts. Wait a minute and try again.', 'auth/network-request-failed': 'No internet connection.'
-};
-let liveMode = null;
+const AUTH_TEXT = { 'wrong-password': 'Wrong password.', 'network': 'Could not reach the event database.' };
 function renderLive() {
   const st = LD.live.state(), user = LD.live.user(), isLive = st === 'on';
   $('live').dataset.state = st;
   $('liveOut').hidden = !!user; $('liveIn').hidden = !user;
-  if (user) $('who').textContent = user.email || 'staff account';
+  $('who').textContent = 'studio staff';
   $('evName').textContent = LD.live.event;
   $('liveStatus').textContent = st === 'off' ? (LD.live.message() || LIVE_TEXT.off) : (LIVE_TEXT[st] || LD.live.message());
-  $('prize').disabled = isLive;
-  if (isLive) { const nx = LD.live.nextPrize(); $('prize').value = nx ? nx.name : 'No prize left to draw'; }
-  $('removeWinners').closest('label').hidden = isLive;
-  $('sample').hidden = isLive;
-  $('saveNames').textContent = isLive ? 'Add names to the event' : 'Save names';
-  $('names').placeholder = isLive ? 'Paste names to add to the event, one per line. Names already in the event are skipped.' : '';
-  if (liveMode !== isLive) { liveMode = isLive; $('names').value = isLive ? '' : s.names.join('\n'); }
+  const nx = isLive ? LD.live.nextPrize() : null;
+  $('prize').value = isLive ? (nx ? nx.name : 'No prize left to draw') : '';
+  $('names').disabled = !isLive;
+  $('names').placeholder = isLive ? 'Paste names to add to the event, one per line. Names already in the event are skipped.' : 'Sign in first.';
   if (user) {
     const winners = LD.live.winners(), next = LD.live.nextPrize();
     $('prizeList').replaceChildren(...LD.live.prizes().map(p => {
@@ -323,7 +307,7 @@ function renderLive() {
 }
 $('signin').addEventListener('submit', async e => {
   e.preventDefault(); $('signinMsg').textContent = 'Signing in…';
-  try { await LD.live.signIn($('email').value, $('pw').value); $('pw').value = ''; $('signinMsg').textContent = ''; }
+  try { await LD.live.signIn($('pw').value); $('pw').value = ''; $('signinMsg').textContent = ''; }
   catch (err) { $('signinMsg').textContent = AUTH_TEXT[err.code] || 'Could not sign in. Check the connection and try again.'; }
 });
 $('signout').addEventListener('click', async () => { await LD.live.signOut(); $('signinMsg').textContent = ''; });
@@ -332,26 +316,13 @@ $('addPrize').addEventListener('click', async () => {
   try { await LD.live.addPrize($('newPrize').value); $('newPrize').value = ''; $('liveMsg').textContent = 'Prize added.'; }
   catch (err) { $('liveMsg').textContent = 'Could not add the prize: ' + (err.message || err); }
 });
-LD.live.onChange(() => { render(); renderLive(); });
-renderLive();
-let armed = null;
-$('clear').addEventListener('click', e => {
-  const b = e.currentTarget;
-  if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Press again to clear'; clearTimeout(armed); armed = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Clear winners'; }, 3000); return; }
-  clearTimeout(armed); b.classList.remove('armed'); b.textContent = 'Clear winners'; LD.save({ winners: [] }); render();
-});
-$('copy').addEventListener('click', async () => {
-  const title = id => (LD.DESIGNS.find(d => d.id === id) || { title: id }).title;
-  const text = s.log.map((w, i) => `${i + 1}. ${w.name}${w.prize ? ' — ' + w.prize : ''} (${title(w.design)})`).join('\n');
-  try { await navigator.clipboard.writeText(text || 'No winners yet'); flash('copiedMsg'); } catch (err) {}
-});
-// Surprise me: a random design among the least-used ones, never the one used last
+function renderAll() { renderDraw(); renderLive(); }
+LD.live.onChange(renderAll);
+renderAll();
+
+// Surprise me: a random design
 $('surprise').addEventListener('click', () => {
-  const last = s.log.length ? s.log[s.log.length - 1].design : '';
-  let cands = LD.DESIGNS.filter(d => d.id !== last);
-  const min = Math.min(...cands.map(d => s.used[d.id] || 0));
-  cands = cands.filter(d => (s.used[d.id] || 0) === min);
-  const d = LD.pick(cands), card = document.querySelector(`.card[data-id="${d.id}"]`);
+  const d = LD.pick(LD.DESIGNS), card = document.querySelector(`.card[data-id="${d.id}"]`);
   card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.add('pulse');
   setTimeout(() => { location.href = card.href; }, LD.reduced ? 200 : 1300);
 });
@@ -359,9 +330,7 @@ addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
   if (/^[0-9]$/.test(e.key)) { const d = LD.DESIGNS[(+e.key + 9) % 10]; location.href = `designs/${d.id}.html`; }
 });
-// stay in step when a design page is used in another tab
-addEventListener('storage', e => { if (e.key === LD.KEY) render(); });
-addEventListener('pageshow', render);
+addEventListener('pageshow', renderAll);
 })();
 </script>
 </body>

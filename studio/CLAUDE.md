@@ -5,13 +5,14 @@ Lucky draw system for company events (Kumpulan Yayasan Sabah). Top management wa
 many separate design pages. Current goal: smoother, more polished animations, and more designs.
 
 ## Structure
-- `index.html` — hub: prize for next draw, design cards ("Used n× / Not used yet" badges),
-  "Surprise me" (random among least-used, never the last one), shared Names list,
-  Winners log (name, prize, design, time), Copy list.
-- `core.js` — shared by every page (`window.LD`): names list + winners log in localStorage
-  (key `ld-studio-v1`), fair crypto-random pick, easing + tween helpers, Web Audio sound kit,
-  2D confetti, `fitText`, keyboard/clicker shortcuts (Space / Enter / PageDown / → = draw,
-  F = full screen, H = hub), and `LD.stage()` which runs the Draw → animate → record → New draw flow.
+- `index.html` — hub: sign-in (shared password), next prize, design cards, Surprise me (random design),
+  names box (adds names to the event), prize box, winners list and Copy list. All data comes from the event.
+- `core.js` — shared by every page (`window.LD`): sign-in, reads and writes to the event database
+  (`events/{EVENT}`), the atomic draw claim (`LD.live.draw`), the shared name roll (`LD.nameRoll`),
+  fair crypto-random pick, easing + tween helpers, Web Audio sound kit, 2D confetti, `fitText`,
+  keyboard/clicker shortcuts (Space / Enter / PageDown / → = draw, F = full screen, H = hub), and
+  `LD.stage()` which runs Draw → name roll → animate → New draw. The browser keeps only the sound and
+  music on/off preference (`ld-studio-prefs`).
 - `designs/*.html` — one page per design. `designs/ui.css` = shared frame for the newer designs.
 
 ## Designs
@@ -42,7 +43,7 @@ many separate design pages. Current goal: smoother, more polished animations, an
 Designs 11–16 are the ceremonial set for the state event; designs 17–22 were added on 2026-11-21. All ten older designs are still listed until the user decides what to retire.
 
 ## Running
-Pages share localStorage, so serve the folder over HTTP rather than opening files directly:
+Serve the folder over HTTP (the event database needs it), not as files:
 `npx serve .` or `python -m http.server 8000`, then open http://localhost:8000.
 Libraries are bundled in `vendor/` (no internet needed for them), mapped in each page's import map:
 - `vendor/three/` — three r160 `build/three.module.js` + only the addons in use under `examples/jsm/` (OrbitControls, RoomEnvironment,
@@ -55,7 +56,7 @@ Libraries are bundled in `vendor/` (no internet needed for them), mapped in each
   To add or change a page's fonts: put a normal Google Fonts `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?...">`
   in the page, then run `python -I tools/bundle_fonts.py .` from the project folder — it downloads the files and swaps the link for the local CSS.
 Testing tip: the in-app browser pane throttles or pauses requestAnimationFrame while hidden, so check motion by pausing the GSAP
-timeline and seeking it in fixed steps (see `#debug`), and restore `ld-studio-v1` in localStorage after test draws.
+timeline and seeking it in fixed steps (see `#debug`). Test draws write to the live event, so only run them when the user asks.
 Gotcha: Three's `curve.getPoint()` is not arc-length parameterised — use `getPointAt()` for camera flights or speed jumps at segment joins.
 
 ## Name roll (added 2026-11-26)
@@ -63,21 +64,32 @@ Gotcha: Three's `curve.getPoint()` is not arc-length parameterised — use `getP
 - **Where:** `nameRoll(names, { accent, minMs, until })` in `core.js` (exported as `LD.nameRoll`). `LD.stage()` calls it for all 18 stage designs. Board, drum, packet and reel call it themselves, right before their animation.
 - **Timing:** 2.8 s normally, 1.2 s with reduced motion (slower name changes). Changes are quick, then ease out to about 4× slower in the last 40 %.
 - **Live mode:** the roll runs while `liveDraw()` saves the claim. It lasts at least `minMs` and until the save settles. The winner shows only after the server accepts it. A failed save removes the roll straight away and shows the error.
-- **Demo mode:** the winner is picked before the roll, so the roll is a visual only. It does not decide the result.
+- **Order:** the claim is saved while the roll runs. The roll ends when the save has settled and the minimum time has passed.
 - **Design rule:** a new design must not show the winner before `draw(winner)` is called. The roll covers the gap; the design animates to the winner it is given.
-- **Firebase fallback:** if the Firebase import hangs for 8 s, demo draws are re-enabled ("Could not reach Firebase. Demo draws still work.").
+- **Firebase fallback:** if the Firebase import hangs for 8 s, the page shows "Could not reach the event database." and the controls stay disabled.
 
-## Live draws (staff sign-in, added 2026-11-22)
-- **Demo mode** (signed out, the default): draws use the local names list in localStorage, as before. Nothing is saved to the event.
-- **Live mode** (a staff account signs in on the hub): `core.js` reads `events/{EVENT}` in the YS60 database (`guests`, `prizes`, `winners`, `winnerByGuest`, `settings`). Every draw is one atomic multi-path update: winner, `winnerByGuest`, `public/winners`, and `log`. The rules reject a second win for the same prize or guest, and `liveDraw()` retries. It is the same logic as `app/src/lib/draw.ts`.
-  - The winner is **shown only after the server accepts the claim**. The stage shows "Saving the draw…" first.
+## Live only (decided 2026-11-26; demo mode removed)
+- There is **no demo mode**. Every draw is a live draw on the event `events/{EVENT}` in the YS60 database.
+  There is no local names list, winners log or prize.
+- **Sign-in:** one shared password (`STUDIO_PASSWORD` in `core.js`, the MAKYS method), remembered per tab
+  (`sessionStorage` key `ld-staff`). It only gates the controls.
+- **Database rules are open for `events/`** (reads and writes, no staff check). This was the user's explicit
+  decision: anyone who can view the site can read and change guests, winners and prizes. Validation is kept.
+- **Draws:** `LD.live.draw()` makes one atomic multi-path update (winner, `winnerByGuest`, `public/winners`,
+  `log`). The rules reject a second win for the same prize or guest, and `liveDraw()` retries.
+  - The winner is **shown only after the server accepts the claim**. The roll covers the save.
   - A save that times out (15 s) says **do not draw again yet**. Check the winners in the event app first.
-  - The hub adds names (`LD.live.addNames`, skips duplicates, never removes) and prizes (`LD.live.addPrize`, appended in draw order). Removing guests and prizes stays in the event app.
-- **Event selection:** `EVENT` is `ys60` by default. `?event=ys60-test` on any page stores the choice in localStorage (`ld-event`) for rehearsals. Use `?event=ys60` to switch back. The hub shows the event id.
-- **Designs:** 18 designs use `LD.stage()`, so they work in both modes. Board, drum, packet and reel run their own draw flow, so `LD.demoOnly()` blocks their draw button in live mode (`#draw`, `#spin`).
-- **Firebase** is loaded from the gstatic CDN (`firebasejs/13.0.0`, same major as `app/`). The config is copied into `core.js` (public web config). Live mode needs internet, but demo mode works offline.
-- **Rules:** no rules change is needed. Staff can already write `guests`, `prizes`, `winners`, `winnerByGuest`, `public` and `log`.
-- **Testing:** `py -m playwright` with the hub signed in on `?event=ys60-test`. Do not test against `ys60` (the real event).
+- **Names and prizes:** the hub adds names (`LD.live.addNames`, skips duplicates, never removes) and prizes
+  (`LD.live.addPrize`, appended in draw order). Removing guests and prizes stays in the event app.
+- **Designs:** the 18 `LD.stage()` designs use the core. Board, drum, packet and reel call `LD.live.draw()` themselves
+  through `LD.nameRoll(..., { until })` before their animation.
+- **Event:** `EVENT` is `ys60` by default. The `?event=` parameter still works, but there is **no test event** in use
+  (decision 2026-11-26: no testing platform).
+- **Firebase** is loaded from the gstatic CDN (`firebasejs/13.0.0`, database only; no Auth SDK). The public web
+  config is copied into `core.js`.
+- **Rules:** `database.rules.json` allows `events/` reads and writes, and a short `batch` string on prizes.
+- **Testing:** load-only checks (every page, signed in and out, no console errors) can run locally. Test draws
+  write winners to the real event, so they are done only when the user asks.
 
 ## Animation libraries / skills
 - Three.js r160 for 3D designs.

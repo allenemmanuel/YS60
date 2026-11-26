@@ -71,7 +71,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px
   <div class="tools">
     <button id="musicBtn" class="ghost" type="button" aria-pressed="true">Music on</button>
     <button id="soundBtn" class="ghost" type="button" aria-pressed="true">Sound on</button>
-    <button id="namesBtn" class="ghost" type="button" aria-controls="drawer" aria-expanded="false">Names</button>
   </div>
 </div>
 <div class="ui bottom">
@@ -83,17 +82,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px
   <p class="hint" id="hint">Watch for your name, then press Spin</p>
 </div>
 
-<aside id="drawer" aria-label="Names in the draw">
-  <header><h2>Names</h2><button id="closeDrawer" class="ghost" type="button">Close</button></header>
-  <label class="cap" for="names">One name per line. These are sample names, so replace them with your own.</label>
-  <textarea id="names" spellcheck="false"></textarea>
-  <label class="row-opt" for="removeWinners"><input type="checkbox" id="removeWinners" checked> Take winners out of the next draws</label>
-  <div class="drawer-actions">
-    <button id="saveNames" type="button">Save names</button>
-    <button id="clearWinners" class="ghost" type="button">Clear winners</button>
-  </div>
-  <div class="winners" id="winnersBox" hidden><h3>Winners so far</h3><ol id="winnersList"></ol></div>
-</aside>
 
 <script src="../core.js"></script>
 <script type="importmap">
@@ -114,10 +102,11 @@ const $ = id => document.getElementById(id);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------- names ----------
-const LS = LD.load(); LD.demoOnly();
-let names = LS.names, winners = LS.winners, removeWinners = LS.removeWinners, soundOn = LS.soundOn, musicOn = LS.musicOn;
-const persist = () => LD.save({ names, winners, removeWinners, soundOn, musicOn });
-const drawPool = () => removeWinners ? names.filter(n => !winners.includes(n)) : names.slice();
+// names: the live event is the only source (see core.js)
+let soundOn = LD.load().soundOn, musicOn = LD.load().musicOn;
+const persist = () => LD.save({ soundOn, musicOn });
+const drawPool = () => LD.pool();
+const winnerCount = () => Object.values(LD.live.winners()).filter(w => w && w.status === 'active').length;
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 // ---------- sound: everything runs through one master; music has its own bus that ducks under the drumroll ----------
@@ -542,9 +531,8 @@ function land() {
   crash(); setMusicLevel();
   setTimeout(() => { if (state === 'won') { whoosh(); startReveal(); } }, reduced ? 0 : 650);
   $('winName').textContent = winner;
-  if (!winners.includes(winner)) winners.push(winner);
   persist(); renderUI();
-  spinBtn.hidden = true; resetBtn.hidden = false; namesBtn.disabled = false;
+  spinBtn.hidden = true; resetBtn.hidden = false;
   hintEl.textContent = 'Press New draw to go again';
 }
 
@@ -612,51 +600,17 @@ function loop() {
 }
 
 // ---------- UI ----------
-const spinBtn = $('spin'), resetBtn = $('reset'), namesBtn = $('namesBtn'), hintEl = $('hint'), drawerEl = $('drawer'), namesEl = $('names');
+const spinBtn = $('spin'), resetBtn = $('reset'), hintEl = $('hint');
 function renderUI() {
-  const p = drawPool().length;
-  $('meta').textContent = `Draw ${String(winners.length + (state === 'won' ? 0 : 1)).padStart(2, '0')} · ${p === 1 ? '1 entry' : p + ' entries'}`;
-  namesBtn.textContent = `Names · ${names.length}`;
-  $('winnersBox').hidden = winners.length === 0;
-  $('winnersList').replaceChildren(...winners.map(w => Object.assign(document.createElement('li'), { textContent: w })));
-  $('removeWinners').checked = removeWinners;
+  const p = drawPool().length, live = LD.live.state() === 'on';
+  $('meta').textContent = `Draw ${String(winnerCount() + (state === 'won' ? 0 : 1)).padStart(2, '0')} · ${p === 1 ? '1 entry' : p + ' entries'}`;
   $('soundBtn').textContent = soundOn ? 'Sound on' : 'Sound off'; $('soundBtn').setAttribute('aria-pressed', String(soundOn));
   $('musicBtn').textContent = musicOn ? 'Music on' : 'Music off'; $('musicBtn').setAttribute('aria-pressed', String(musicOn));
-  if (state === 'idle') { spinBtn.disabled = p === 0; hintEl.textContent = p === 0 ? 'Add names to start the draw' : 'Watch for your name, then press Spin'; }
+  if (state === 'idle') { spinBtn.disabled = !live || p === 0; hintEl.textContent = !live ? 'Sign in on the hub to draw' : p === 0 ? 'No entries left to draw' : 'Watch for your name, then press Spin'; }
 }
-let rolling = false; // names roll before the reel starts
-spinBtn.addEventListener('click', async () => {
-  if (rolling || state !== 'idle' || !order.length) return;
-  initAudio();
-  rolling = true; spinBtn.disabled = true; namesBtn.disabled = true; hintEl.textContent = 'Drawing…';
-  winner = LD.pick(order);
-  await LD.nameRoll(order, { minMs: reduced ? 1200 : 2800 });
-  rolling = false;
-  openDrawer(false); hintEl.textContent = 'Spinning…';
-  state = 'accel'; t0 = spinStart = performance.now(); decel = null; rollAcc = 0; setMusicLevel();
-});
-resetBtn.addEventListener('click', () => {
-  resetBtn.hidden = true; spinBtn.hidden = false; $('result').classList.remove('show'); confetti.visible = false;
-  if (reveal) { reveal = { ...reveal, t: 0, dir: -1, from: heroP.group.position.clone() }; whoosh(); }
-  // swap the names only after the hero panel is back in the reel
-  setTimeout(() => { if (!reveal) { panels.forEach(p => p.mesh.visible = true); rebuildOrder(); } else { setTimeout(() => { panels.forEach(p => p.mesh.visible = true); rebuildOrder(); }, 400); } state = 'idle'; renderUI(); setMusicLevel(); }, 850);
-});
-function openDrawer(open) {
-  drawerEl.classList.toggle('open', open); namesBtn.setAttribute('aria-expanded', String(open));
-  if (open) { namesEl.value = names.join('\n'); namesEl.focus(); }
-}
-namesBtn.addEventListener('click', () => openDrawer(!drawerEl.classList.contains('open')));
-$('closeDrawer').addEventListener('click', () => openDrawer(false));
 const refresh = () => { if (state === 'idle') rebuildOrder(); renderUI(); };
-$('saveNames').addEventListener('click', () => {
-  names = [...new Set(namesEl.value.split('\n').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean))];
-  persist(); openDrawer(false); refresh();
-});
-$('clearWinners').addEventListener('click', () => { winners = []; persist(); refresh(); });
-$('removeWinners').addEventListener('change', e => { removeWinners = e.target.checked; persist(); refresh(); });
 $('soundBtn').addEventListener('click', () => { initAudio(); soundOn = !soundOn; setSound(soundOn); persist(); renderUI(); });
 $('musicBtn').addEventListener('click', () => { initAudio(); musicOn = !musicOn; setMusicLevel(); persist(); renderUI(); });
-addEventListener('keydown', e => { if (e.key === 'Escape') openDrawer(false); });
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); fitCamera();
 });

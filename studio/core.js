@@ -1,22 +1,9 @@
 /* Lucky Draw Studio — shared core.
-   Every design page loads this first. It keeps ONE names list and ONE winners log for the whole studio
-   (all pages live on the same site, so they share browser storage), picks winners fairly,
-   and gives each page the same keyboard shortcuts, confetti and sound helpers. */
+   Every design page loads this first. All names, winners and prizes live in the event database (live mode only).
+   The only thing kept in the browser is the sound and music on/off preference.
+   It also gives each page the same keyboard shortcuts, confetti and sound helpers. */
 (function () {
-  const KEY = 'ld-studio-v1';
-  const SAMPLE = [
-    'Wan Nur Aisyah Humaira binti Wan Mohd Kamarul Ariffin', 'Muhammad Aiman Haziq Danial bin Abdul Rahman Shah',
-    'Tengku Puteri Nur Sofea Qistina binti Tengku Ahmad Shahrizal', 'Dayang Nurul Syafiqah Izzati binti Awang Mohd Kamaruddin',
-    'Rajeshwaran a/l Subramaniam Pillai', 'Thanaletchumy a/p Muthukrishnan Ramasamy',
-    'Mohd Firdaus Hakimi Iskandar bin Mohd Zulkarnain', 'Jessica Valerie Gimbang anak Joseph Majalap',
-    'Sharifah Nur Ain Syazwani binti Syed Abdul Kadir Al-Attas', 'Abang Muhammad Faris Iskandar bin Abang Zainal Abidin',
-    'Nik Nur Aqilah Damia binti Nik Mohd Azhar Hakimi', 'Kavitha Devi a/p Ganesan Arumugam',
-    'Fatimah Az-Zahra Nur Iman binti Muhammad Haikal Irfan', 'Awangku Muhammad Hazwan Haziq bin Pengiran Abdul Rahim',
-    'Puteri Nurul Izzah Qaisara binti Megat Mohd Shahrul Nizam', 'Datuk Seri Ahmad Faizal Hakimi bin Tan Sri Mohamed Ariffin',
-    'Nur Alya Batrisyia Sofea binti Mohd Hafizuddin', 'Alvin Christopher Lojuntin Majimbun',
-    'Siti Nur Farhana Athirah binti Ismail Sabri', 'Ahmad Danial Haikal Aqil bin Ahmad Faizal Hakimi',
-    'Chong Wei Liang Jonathan', 'Lim Jia Hui Rachel'
-  ];
+  const PREF_KEY = 'ld-studio-prefs';
   const DESIGNS = [
     { id: 'reel', title: 'Name Reel Showtime' }, { id: 'packet', title: 'Red Packet' },
     { id: 'board', title: 'Departure Board' }, { id: 'drum', title: 'Gold Drum' },
@@ -31,45 +18,19 @@
   ];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---------- shared state ----------
+  // ---------- shared state: sound/music preferences only ----------
   function normalise(s) {
     s = s && typeof s === 'object' ? s : {};
-    return {
-      names: Array.isArray(s.names) ? s.names : SAMPLE.slice(),
-      winners: Array.isArray(s.winners) ? s.winners : [],
-      removeWinners: s.removeWinners !== false,
-      soundOn: s.soundOn !== false,
-      musicOn: s.musicOn !== false,
-      log: Array.isArray(s.log) ? s.log : [],
-      prize: typeof s.prize === 'string' ? s.prize : '',
-      used: s.used && typeof s.used === 'object' ? s.used : {}
-    };
+    return { soundOn: s.soundOn !== false, musicOn: s.musicOn !== false };
   }
-  let mem = null; // used when browser storage is blocked, so the page still works for this visit
+  let mem = null; // used when browser storage is blocked
   function load() {
-    try { const raw = localStorage.getItem(KEY); if (raw !== null) return normalise(JSON.parse(raw)); } catch (e) {}
+    try { const raw = localStorage.getItem(PREF_KEY); if (raw !== null) return normalise(JSON.parse(raw)); } catch (e) {}
     return normalise(mem);
   }
-  function store(s) { mem = s; try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
-
+  function store(s) { mem = s; try { localStorage.setItem(PREF_KEY, JSON.stringify(s)); } catch (e) {} }
+  function save(part) { const s = Object.assign(load(), part); store(s); return s; }
   const design = document.documentElement.dataset.design || '';
-  // Merge a partial update. New names in `winners` are logged with this page's design and the current prize.
-  function save(part) {
-    const s = load();
-    if (part.winners) {
-      if (!part.winners.length) { s.log = []; s.used = {}; }
-      for (const w of part.winners) {
-        if (!s.winners.includes(w)) {
-          s.log.push({ name: w, design, prize: s.prize, at: Date.now() });
-          if (design) s.used[design] = (s.used[design] || 0) + 1;
-        }
-      }
-    }
-    Object.assign(s, part);
-    store(s); return s;
-  }
-  // In live mode the pool is the eligible guests in the event database; otherwise the demo names.
-  const pool = (s = load()) => liveOn() ? liveEligible().map(g => g.name) : (s.removeWinners ? s.names.filter(n => !s.winners.includes(n)) : s.names.slice());
 
   // fair pick: crypto randomness, no modulo bias
   function randInt(n) {
@@ -217,15 +178,6 @@
   }
   const busy = on => document.body.classList.toggle('ld-busy', !!on);
 
-  // Log one draw (always logged, even when winners stay in the pool)
-  function record(name, prize) {
-    const s = load();
-    s.log.push({ name, design, prize: prize !== undefined ? prize : s.prize, at: Date.now() });
-    if (design) s.used[design] = (s.used[design] || 0) + 1;
-    if (!s.winners.includes(name)) s.winners.push(name);
-    store(s); return s;
-  }
-
   // Shared name roll, shown before every design's own animation. Names flicker past from the draw pool,
   // slow down at the end and fade out, so the audience sees the names before the winner is shown.
   // `until` (optional) is a promise for the draw being saved: the roll lasts at least `minMs` and until it settles.
@@ -279,37 +231,34 @@
     const drawBtn = $('draw'), resetBtn = $('reset'), meta = $('meta'), hint = $('hint'), soundBtn = $('soundBtn'), result = $('result');
     let state = 'idle';
     function ui() {
-      const s = load(), left = pool(s).length, ls = liveState(), isLive = ls === 'on';
-      meta.textContent = `Draw ${String(s.log.length + (state === 'won' ? 0 : 1)).padStart(2, '0')} · ${left === 1 ? '1 name' : left + ' names'} in the draw${isLive ? ' · live' : ''}`;
+      const left = pool().length, ls = liveState(), isLive = ls === 'on', s = load();
+      const done = Object.values(live.winners).filter(w => w && w.status === 'active').length;
+      meta.textContent = `Draw ${String(done + (state === 'won' ? 0 : 1)).padStart(2, '0')} · ${left === 1 ? '1 name' : left + ' names'} in the draw${isLive ? ' · live' : ''}`;
       soundBtn.textContent = s.soundOn ? 'Sound on' : 'Sound off'; soundBtn.setAttribute('aria-pressed', String(s.soundOn));
       if (state !== 'idle') return;
       if (ls === 'checking' || ls === 'connecting') { drawBtn.disabled = true; hint.textContent = 'Connecting to the event…'; }
       else if (ls === 'error' || ls === 'not-staff') { drawBtn.disabled = true; hint.textContent = liveMessage(); }
+      else if (ls === 'off') { drawBtn.disabled = true; hint.innerHTML = 'Sign in on the <a href="../index.html">hub</a> to draw.'; }
       else if (isLive && !liveNextPrize()) { drawBtn.disabled = true; hint.textContent = 'No prize left to draw. Add a prize on the designs page.'; }
-      else { drawBtn.disabled = !left; hint.innerHTML = left ? idleHint : (isLive ? 'No eligible names left to draw.' : 'No names left. Add names on the <a href="../index.html">designs page</a>.'); }
+      else { drawBtn.disabled = !left; hint.innerHTML = left ? idleHint : 'No eligible names left to draw.'; }
     }
     // One draw. In live mode the winner is saved to the event first, and is shown only after the server accepts it.
     async function runDraw() {
-      const p = pool(); if (state !== 'idle' || !p.length) return;
+      const p = pool(); if (state !== 'idle' || !liveOn() || !p.length) return;
       audio(); state = 'busy'; busy(true); drawBtn.disabled = true; result.textContent = '';
       let w, prizeName = currentPrize();
       const rollOpts = { accent, minMs: reduced ? 1200 : 2800 };
-      if (liveOn()) {
-        // The names roll while the draw is saved; the winner is shown only after the server accepts it.
-        hint.textContent = 'Saving the draw…';
-        try { const claim = await nameRoll(p, { ...rollOpts, until: liveDraw() }); w = claim.name; prizeName = claim.prize.name; }
-        catch (e) {
-          console.error(e); state = 'idle'; busy(false); ui();
-          hint.textContent = e.message || 'The draw was not saved.';
-          return;
-        }
-      } else {
-        w = pick(p);
-        await nameRoll(p, rollOpts);
+      // The names roll while the draw is saved; the winner is shown only after the server accepts it.
+      hint.textContent = 'Saving the draw…';
+      try { const claim = await nameRoll(p, { ...rollOpts, until: liveDraw() }); w = claim.name; prizeName = claim.prize.name; }
+      catch (e) {
+        console.error(e); state = 'idle'; busy(false); ui();
+        hint.textContent = e.message || 'The draw was not saved.';
+        return;
       }
       hint.textContent = drawingHint;
       try { await draw(w); } catch (e) { console.error(e); }
-      record(w, prizeName); result.textContent = 'The winner is ' + w;
+      result.textContent = 'The winner is ' + w;
       state = 'won'; busy(false); drawBtn.hidden = true; resetBtn.hidden = false;
       hint.textContent = 'Press New draw for the next prize'; ui();
     }
@@ -363,9 +312,10 @@
     const needCheckIn = live.settings.entryMode === 'checkedIn';
     return Object.entries(live.guests).filter(([id, g]) => g && !live.wbg[id] && (!needCheckIn || g.checkedIn)).map(([id, g]) => ({ id, name: g.name }));
   }
+  const pool = () => liveOn() ? liveEligible().map(g => g.name) : [];
   const livePrizes = () => Object.entries(live.prizes).map(([id, p]) => ({ id, ...p })).sort((a, b) => a.order - b.order);
   const liveNextPrize = () => livePrizes().find(p => live.winners[p.id]?.status !== 'active') || null;
-  const currentPrize = () => liveOn() ? (liveNextPrize()?.name || '') : load().prize;
+  const currentPrize = () => liveNextPrize()?.name || '';
   function prizeLabels() {
     const pz = currentPrize();
     document.querySelectorAll('[data-ld-prize]').forEach(el => { if (!el.dataset.ldDefault) el.dataset.ldDefault = el.textContent; el.textContent = pz || el.dataset.ldDefault; });
@@ -385,36 +335,35 @@
       }, () => { live.error = 'Lost the connection to the event database.'; notifyLive(); }));
     }
   }
+  // MAKYS-style staff gate: one shared password, checked in the browser. It keeps casual visitors out of the
+  // controls only. Anyone who can view this page can read and change the event data (decision 2026-11-26).
+  const STUDIO_PASSWORD = 'malam', SESSION_KEY = 'ld-staff';
   const liveInit = (async () => {
     try {
-      const [authMod, dbMod, appMod] = await Promise.all([import(FB + 'firebase-auth.js'), import(FB + 'firebase-database.js'), import(FB + 'firebase-app.js')]);
+      const [dbMod, appMod] = await Promise.all([import(FB + 'firebase-database.js'), import(FB + 'firebase-app.js')]);
       const app = appMod.initializeApp(FB_CONFIG, 'ld-studio');
-      live.fb = { authMod, D: dbMod, db: dbMod.getDatabase(app), auth: authMod.getAuth(app) };
-      authMod.onAuthStateChanged(live.fb.auth, async user => {
-        detachLive(); live.user = user; live.isStaff = false; live.error = '';
-        if (user) {
-          try {
-            const snap = await dbMod.get(dbMod.ref(live.fb.db, `staff/${user.uid}`));
-            if (live.user !== user) return; // signed out or switched while checking
-            live.isStaff = snap.val() === true;
-          } catch (e) { if (live.user === user) live.error = 'Could not check staff access. Check the internet connection.'; }
-          if (live.user === user && live.isStaff) attachLive();
-        }
-        live.authed = true; notifyLive();
-      });
+      live.fb = { D: dbMod, db: dbMod.getDatabase(app) };
+      live.authed = true;
+      if (sessionStorage.getItem(SESSION_KEY) === '1') { live.user = { uid: 'studio' }; live.isStaff = true; attachLive(); }
+      notifyLive();
     } catch (e) {
-      console.error(e); live.authed = true; live.error = 'Could not reach Firebase. Check the internet connection.'; notifyLive();
+      console.error(e); live.authed = true; live.error = 'Could not reach the event database. Check the internet connection.'; notifyLive();
     }
   })();
-  // A hanging download (slow or blocked network) must not keep demo draws disabled: after 8 s, treat Firebase as unreachable.
-  // The auth listener above still takes over if Firebase loads later.
-  setTimeout(() => { if (!live.authed) { live.authed = true; live.error = 'Could not reach Firebase. Demo draws still work.'; notifyLive(); } }, 8000);
-  async function liveSignIn(email, password) {
+  // A hanging download (slow or blocked network) must not block the page: after 8 s, treat Firebase as unreachable.
+  setTimeout(() => { if (!live.authed) { live.authed = true; live.error = 'Could not reach the event database. Please check the connection.'; notifyLive(); } }, 8000);
+  async function liveSignIn(password) {
     await liveInit;
-    if (!live.fb) throw Object.assign(new Error('Not connected.'), { code: 'auth/network-request-failed' });
-    return live.fb.authMod.signInWithEmailAndPassword(live.fb.auth, email.trim(), password);
+    if (!live.fb) throw Object.assign(new Error('Could not reach the event database.'), { code: 'network' });
+    if (password !== STUDIO_PASSWORD) throw Object.assign(new Error('Wrong password.'), { code: 'wrong-password' });
+    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (e) {}
+    detachLive(); live.user = { uid: 'studio' }; live.isStaff = true; live.error = ''; attachLive(); notifyLive();
   }
-  async function liveSignOut() { await liveInit; if (live.fb) await live.fb.authMod.signOut(live.fb.auth); }
+  async function liveSignOut() {
+    await liveInit;
+    try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+    detachLive(); live.user = null; live.isStaff = false; live.error = ''; notifyLive();
+  }
 
   class LiveDrawError extends Error {}
   function withTimeout(promise, ms = 15000) {
@@ -426,7 +375,7 @@
   }
   // Draw the next prize without a winner. Reads fresh data, claims in one atomic update, and retries if the rules reject it.
   async function liveDraw() {
-    const { D, db } = live.fb, E = `events/${EVENT}`, by = live.user.email || live.user.uid;
+    const { D, db } = live.fb, E = `events/${EVENT}`, by = 'studio';
     const read = path => D.get(D.ref(db, `${E}/${path}`)).then(snap => snap.val() || {});
     for (let attempt = 0; attempt < 5; attempt++) {
       const [prizes, winners, guests, wbg, settings] = await Promise.all(['prizes', 'winners', 'guests', 'winnerByGuest', 'settings'].map(read));
@@ -455,7 +404,7 @@
   }
   // Add names to the event (never removes anything). Names already in the event are skipped.
   async function liveAddNames(list) {
-    const { D, db } = live.fb, E = `events/${EVENT}`, by = live.user.email || live.user.uid;
+    const { D, db } = live.fb, E = `events/${EVENT}`, by = 'studio';
     const have = new Set(Object.values(live.guests).filter(Boolean).map(g => String(g.name).toLowerCase()));
     const fresh = [...new Set(list.map(n => n.replace(/\s+/g, ' ').trim()).filter(n => n && n.length <= 120))].filter(n => !have.has(n.toLowerCase()));
     if (!fresh.length) return 0;
@@ -467,7 +416,7 @@
   }
   // Add a prize at the end of the draw order.
   async function liveAddPrize(name) {
-    const { D, db } = live.fb, E = `events/${EVENT}`, by = live.user.email || live.user.uid;
+    const { D, db } = live.fb, E = `events/${EVENT}`, by = 'studio';
     const text = name.replace(/\s+/g, ' ').trim().slice(0, 200);
     if (!text) return;
     const order = livePrizes().reduce((m, p) => Math.max(m, p.order), 0) + 1;
@@ -478,27 +427,7 @@
     });
   }
 
-  // Designs with their own draw flow (not LD.stage) are demo-only: block their draw while live draws are on.
-  function demoOnly() {
-    const guard = e => {
-      if (!liveOn()) return;
-      if (e.type === 'click' && !(e.target.closest && e.target.closest('#draw, #spin'))) return;
-      if (e.type === 'keydown' && ![' ', 'Enter', 'PageDown', 'ArrowRight'].includes(e.key)) return;
-      e.preventDefault(); e.stopImmediatePropagation();
-    };
-    addEventListener('click', guard, true); addEventListener('keydown', guard, true);
-    let bar = null;
-    onLive(() => {
-      if (!liveOn()) { if (bar) bar.remove(); bar = null; return; }
-      if (bar) return;
-      bar = document.createElement('div'); bar.setAttribute('role', 'status');
-      Object.assign(bar.style, { position: 'fixed', left: '50%', top: '14px', transform: 'translateX(-50%)', zIndex: 50, padding: '10px 16px', borderRadius: '10px', background: '#7a1220', color: '#fff', font: '600 14px/1.3 system-ui,sans-serif' });
-      bar.textContent = 'Live draws are on. This design is demo-only: go back and choose another design for a real draw.';
-      document.body.appendChild(bar);
-    });
-  }
-
-  window.LD = { KEY, SAMPLE, DESIGNS, design, reduced, load, save, pool, randInt, pick, shuffle, ease, tween, sleep, audio, snd, confetti, fitText, chrome, busy, record, stage, nameRoll, demoOnly,
+  window.LD = { DESIGNS, design, reduced, load, save, pool, randInt, pick, shuffle, ease, tween, sleep, audio, snd, confetti, fitText, chrome, busy, stage, nameRoll,
     live: { event: EVENT, onChange: onLive, state: liveState, message: liveMessage, user: () => live.user, prizes: livePrizes, nextPrize: liveNextPrize, winners: () => live.winners,
-      signIn: liveSignIn, signOut: liveSignOut, addNames: liveAddNames, addPrize: liveAddPrize } };
+      signIn: liveSignIn, signOut: liveSignOut, addNames: liveAddNames, addPrize: liveAddPrize, draw: liveDraw } };
 })();

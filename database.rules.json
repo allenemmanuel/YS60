@@ -14,11 +14,11 @@
 
     "events": {
       "$eventId": {
-        ".read": "auth != null && root.child('staff/' + auth.uid).val() === true",
+        ".read": "true",
 
         "guests": {
           "$guestId": {
-            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+            ".write": "true",
             ".validate": "newData.hasChildren(['name', 'source', 'checkedIn', 'createdAt'])",
             "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
             "group": { ".validate": "newData.isString() && newData.val().length <= 120" },
@@ -32,18 +32,19 @@
 
         "prizes": {
           "$prizeId": {
-            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+            ".write": "true",
             ".validate": "newData.hasChildren(['order', 'name'])",
             "order": { ".validate": "newData.isNumber()" },
             "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
             "counter": { ".validate": "newData.isString() && newData.val().length <= 60" },
+            "batch": { ".validate": "newData.isString() && newData.val().length <= 60" },
             "$other": { ".validate": false }
           }
         },
 
         "winners": {
           "$prizeId": {
-            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true && (!data.exists() || !newData.exists() || data.child('status').val() === 'void' || newData.child('guestId').val() === data.child('guestId').val())",
+            ".write": "(!data.exists() || !newData.exists() || data.child('status').val() === 'void' || newData.child('guestId').val() === data.child('guestId').val())",
             ".validate": "newData.hasChildren(['guestId', 'name', 'drawnAt', 'by', 'status']) && newData.parent().parent().child('prizes/' + $prizeId).exists() && newData.parent().parent().child('guests/' + newData.child('guestId').val()).exists() && (newData.child('status').val() !== 'active' || newData.parent().parent().child('winnerByGuest/' + newData.child('guestId').val()).val() === $prizeId)",
             "guestId": { ".validate": "newData.isString()" },
             "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
@@ -58,13 +59,13 @@
 
         "winnerByGuest": {
           "$guestId": {
-            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true && (!data.exists() || !newData.exists())",
+            ".write": "(!data.exists() || !newData.exists())",
             ".validate": "newData.isString() && newData.parent().parent().child('prizes/' + newData.val()).exists()"
           }
         },
 
         "settings": {
-          ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+          ".write": "true",
           "entryMode": { ".validate": "newData.val() === 'all' || newData.val() === 'checkedIn'" },
           "$other": { ".validate": false }
         },
@@ -73,7 +74,7 @@
           ".read": true,
           "winners": {
             "$prizeId": {
-              ".write": "auth != null && root.child('staff/' + auth.uid).val() === true",
+              ".write": "true",
               ".validate": "newData.hasChildren(['name', 'prizeName', 'order', 'drawnAt'])",
               "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
               "prizeName": { ".validate": "newData.isString() && newData.val().length <= 200" },
@@ -88,7 +89,7 @@
 
         "log": {
           "$logId": {
-            ".write": "auth != null && root.child('staff/' + auth.uid).val() === true && !data.exists()",
+            ".write": "!data.exists()",
             ".validate": "newData.hasChildren(['type', 'at', 'by'])",
             "type": { ".validate": "newData.isString() && newData.val().length <= 40" },
             "at": { ".validate": "newData.isNumber()" },

@@ -107,7 +107,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
     <h1>Lucky Draw<small data-ld-prize>Grand prize</small></h1>
     <div class="controls">
       <button id="soundBtn" class="ghost" type="button" aria-pressed="true">Sound on</button>
-      <button id="namesBtn" class="ghost" type="button" aria-controls="drawer" aria-expanded="false">Names</button>
     </div>
   </header>
 
@@ -131,17 +130,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
   <p class="hint" id="hint">Press Draw to pick a winner</p>
 </div>
 
-<aside id="drawer" aria-label="Names in the draw">
-  <header><h2>Names</h2><button id="closeDrawer" class="ghost" type="button">Close</button></header>
-  <label class="cap" for="names">One name per line. These are sample names, so replace them with your own.</label>
-  <textarea id="names" spellcheck="false"></textarea>
-  <label class="row" for="removeWinners"><input type="checkbox" id="removeWinners" checked> Take winners out of the next draws</label>
-  <div class="drawer-actions">
-    <button id="saveNames" type="button">Save names</button>
-    <button id="clearWinners" class="ghost" type="button">Clear winners</button>
-  </div>
-  <div class="winners" id="winnersBox" hidden><h3>Winners so far</h3><ol id="winnersList"></ol></div>
-</aside>
 
 <script src="../core.js"></script>
 <script>
@@ -150,11 +138,11 @@ const CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/.'@&";
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
 
-// ---------- names ----------
-const LS = LD.load(); LD.demoOnly();
-let names = LS.names, winners = LS.winners, removeWinners = LS.removeWinners, soundOn = LS.soundOn, musicOn = LS.musicOn;
-const persist = () => LD.save({ names, winners, removeWinners, soundOn, musicOn });
-const drawPool = () => removeWinners ? names.filter(n => !winners.includes(n)) : names.slice();
+// ---------- names: the live event is the only source (see core.js) ----------
+let soundOn = LD.load().soundOn, musicOn = LD.load().musicOn;
+const persist = () => LD.save({ soundOn, musicOn });
+const drawPool = () => LD.pool();
+const winnerCount = () => Object.values(LD.live.winners()).filter(w => w && w.status === 'active').length;
 const toBoard = s => s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split('').map(c => CHARS.includes(c) ? c : ' ').join('');
 
 // ---------- sound: a short filtered noise "clack" per flap ----------
@@ -261,33 +249,33 @@ async function scramble(ms, run) {
 }
 
 // ---------- UI ----------
-const drawBtn = $('draw'), resetBtn = $('reset'), namesBtn = $('namesBtn'), drawerEl = $('drawer'), namesEl = $('names');
+const drawBtn = $('draw'), resetBtn = $('reset');
 const resultEl = $('result'), winNameEl = $('winName'), hintEl = $('hint'), lamp = $('lamp'), statusText = $('statusText');
 let busy = false, shownWinner = false;
 function setStatus(text, mode) { statusText.textContent = text; lamp.className = 'lamp' + (mode === 'blink' ? ' on blink' : mode === 'on' ? ' on' : ''); }
 function renderUI() {
-  const p = drawPool().length;
+  const p = drawPool().length, names = drawPool(), live = LD.live.state() === 'on';
   $('entries').textContent = p === 1 ? '1 entry' : `${p} entries`;
-  $('drawNo').textContent = 'Draw ' + String(winners.length + (shownWinner ? 0 : 1)).padStart(2, '0');
-  namesBtn.textContent = `Names · ${names.length}`;
-  $('winnersBox').hidden = winners.length === 0;
-  $('winnersList').replaceChildren(...winners.map(w => Object.assign(document.createElement('li'), { textContent: w })));
-  $('removeWinners').checked = removeWinners;
+  $('drawNo').textContent = 'Draw ' + String(winnerCount() + (shownWinner ? 0 : 1)).padStart(2, '0');
   $('soundBtn').textContent = soundOn ? 'Sound on' : 'Sound off'; $('soundBtn').setAttribute('aria-pressed', String(soundOn));
-  if (!busy && !shownWinner) { drawBtn.disabled = p === 0; hintEl.textContent = p === 0 ? 'Add names to start the draw' : 'Press Draw to pick a winner'; }
+  if (!busy && !shownWinner) {
+    drawBtn.disabled = !live || p === 0;
+    hintEl.textContent = !live ? 'Sign in on the hub to draw' : p === 0 ? 'No names left to draw' : 'Press Draw to pick a winner';
+  }
   const track = $('ticker');
-  const items = names.map(n => `<span class="${winners.includes(n) && removeWinners ? 'won' : ''}">${n.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span><span>◆</span>`).join('');
+  const items = names.map(n => `<span>${n.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span><span>◆</span>`).join('');
   track.innerHTML = items + items; track.style.setProperty('--dur', Math.max(30, names.join('').length * 0.18) + 's');
 }
 function idleFrame() { const p = drawPool().length; return frameFor(['LUCKY DRAW', '', p ? `${p} ENTRIES` : 'ADD NAMES'].map(toBoard)); }
 
 drawBtn.addEventListener('click', async () => {
-  const p = drawPool(); if (busy || !p.length) return;
+  const p = drawPool(); if (busy || LD.live.state() !== 'on' || !p.length) return;
   initAudio(); if (ac && ac.state === 'suspended') ac.resume();
-  busy = true; drawBtn.disabled = true; namesBtn.disabled = true; openDrawer(false);
+  busy = true; drawBtn.disabled = true; hintEl.textContent = 'Saving the draw…';
   tiles.forEach(t => t.el.classList.remove('win'));
-  const winner = LD.pick(p);
-  await LD.nameRoll(p, { accent: '#ffb547', minMs: reduced ? 1200 : 2800 });
+  let winner;
+  try { winner = (await LD.nameRoll(p, { accent: '#ffb547', minMs: reduced ? 1200 : 2800, until: LD.live.draw() })).name; }
+  catch (err) { console.error(err); busy = false; renderUI(); hintEl.textContent = err.message || 'The draw was not saved.'; return; }
   const need = wrapName(toBoard(winner), cols).length;
   if (need > rows) { build(need); tiles.forEach(t => t.set(' ')); }
   setStatus('Drawing', 'blink'); hintEl.textContent = 'Drawing…';
@@ -300,35 +288,20 @@ drawBtn.addEventListener('click', async () => {
   tiles.forEach((t, k) => { if (t.char !== ' ') { t.el.classList.add('win'); t.el.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.9)' }, { filter: 'brightness(1)' }], { duration: 700, delay: (k % cols) * 28, easing: 'ease-out' }); } });
   setStatus('Winner', 'on'); LD.confetti({ colors: ['#ffb547', '#ffd27c', '#c9a25a', '#f2ead8'] }); LD.snd.chime && (LD.audio(), soundOn && LD.snd.chime());
   winNameEl.textContent = winner; resultEl.classList.add('show');
-  if (!winners.includes(winner)) winners.push(winner);
   shownWinner = true; busy = false; persist(); renderUI();
-  $('drawNo').textContent = 'Draw ' + String(winners.length).padStart(2, '0');
+  $('drawNo').textContent = 'Draw ' + String(winnerCount()).padStart(2, '0');
   resetBtn.hidden = false; drawBtn.hidden = true; hintEl.textContent = 'Press New draw to go again';
 });
 resetBtn.addEventListener('click', async () => {
   resetBtn.hidden = true; drawBtn.hidden = false; resultEl.classList.remove('show'); shownWinner = false;
   tiles.forEach(t => t.el.classList.remove('win'));
-  busy = true; namesBtn.disabled = false; setStatus('Ready', 'off');
+  busy = true; setStatus('Ready', 'off');
   if (build()) tiles.forEach(t => t.set(' '));
   await showFrame(idleFrame(), { d: 50, stagger: 10 });
   busy = false; renderUI();
 });
 
-function openDrawer(open) {
-  drawerEl.classList.toggle('open', open); namesBtn.setAttribute('aria-expanded', String(open));
-  if (open) { namesEl.value = names.join('\n'); namesEl.focus(); }
-}
-namesBtn.addEventListener('click', () => openDrawer(!drawerEl.classList.contains('open')));
-$('closeDrawer').addEventListener('click', () => openDrawer(false));
-$('saveNames').addEventListener('click', () => {
-  names = [...new Set(namesEl.value.split('\n').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean))];
-  persist(); renderUI(); openDrawer(false);
-  if (!busy && !shownWinner) showFrame(idleFrame(), { d: 50, stagger: 10 });
-});
-$('clearWinners').addEventListener('click', () => { winners = []; persist(); renderUI(); if (!busy && !shownWinner) showFrame(idleFrame(), { d: 50, stagger: 10 }); });
-$('removeWinners').addEventListener('change', e => { removeWinners = e.target.checked; persist(); renderUI(); if (!busy && !shownWinner) showFrame(idleFrame(), { d: 50, stagger: 10 }); });
 $('soundBtn').addEventListener('click', () => { soundOn = !soundOn; persist(); renderUI(); });
-addEventListener('keydown', e => { if (e.key === 'Escape') openDrawer(false); });
 
 let resizeT;
 addEventListener('resize', () => {

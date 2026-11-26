@@ -113,7 +113,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
     <div><h1 data-ld-prize>Lucky Draw</h1><p id="meta">Draw 01 · 22 entries</p></div>
     <div class="tools">
       <button id="soundBtn" class="ghost" type="button" aria-pressed="true">Sound on</button>
-      <button id="namesBtn" class="ghost" type="button" aria-controls="drawer" aria-expanded="false">Names</button>
     </div>
   </header>
 
@@ -134,17 +133,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
   <p class="hint" id="hint">Press Draw to shuffle the packets</p>
 </div>
 
-<aside id="drawer" aria-label="Names in the draw">
-  <header><h2>Names</h2><button id="closeDrawer" class="ghost" type="button">Close</button></header>
-  <label class="cap" for="names">One name per line. These are sample names, so replace them with your own.</label>
-  <textarea id="names" spellcheck="false"></textarea>
-  <label class="row" for="removeWinners"><input type="checkbox" id="removeWinners" checked> Take winners out of the next draws</label>
-  <div class="drawer-actions">
-    <button id="saveNames" type="button">Save names</button>
-    <button id="clearWinners" class="ghost" type="button">Clear winners</button>
-  </div>
-  <div class="winners" id="winnersBox" hidden><h3>Winners so far</h3><ol id="winnersList"></ol></div>
-</aside>
 
 <script src="../core.js"></script>
 <script>
@@ -155,10 +143,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const EASE = 'cubic-bezier(.2,.8,.2,1)';
 
 // ---------- names ----------
-const LS = LD.load(); LD.demoOnly();
-let names = LS.names, winners = LS.winners, removeWinners = LS.removeWinners, soundOn = LS.soundOn, musicOn = LS.musicOn;
-const persist = () => LD.save({ names, winners, removeWinners, soundOn, musicOn });
-const drawPool = () => removeWinners ? names.filter(n => !winners.includes(n)) : names.slice();
+// names: the live event is the only source (see core.js)
+let soundOn = LD.load().soundOn, musicOn = LD.load().musicOn;
+const persist = () => LD.save({ soundOn, musicOn });
+const drawPool = () => LD.pool();
+const winnerCount = () => Object.values(LD.live.winners()).filter(w => w && w.status === 'active').length;
 
 // ---------- sound: soft paper swish and a bell-like tick ----------
 let ac = null;
@@ -223,7 +212,7 @@ function moveTo(e, p, dur, { easing = EASE, lift = 0, opacity } = {}) {
 }
 
 // ---------- the draw ----------
-const drawBtn = $('draw'), resetBtn = $('reset'), namesBtn = $('namesBtn'), resultEl = $('result'), hintEl = $('hint');
+const drawBtn = $('draw'), resetBtn = $('reset'), resultEl = $('result'), hintEl = $('hint');
 let busy = false, shown = false;
 
 async function shuffleRounds(rounds) {
@@ -268,11 +257,12 @@ function fitName(name, maxPx) {
 }
 
 drawBtn.addEventListener('click', async () => {
-  const pool = drawPool(); if (busy || !pool.length) return;
+  const pool = drawPool(); if (busy || LD.live.state() !== 'on' || !pool.length) return;
   initAudio(); if (ac && ac.state === 'suspended') ac.resume();
-  busy = true; drawBtn.disabled = true; namesBtn.disabled = true; openDrawer(false);
-  const winner = LD.pick(pool);
-  await LD.nameRoll(pool, { minMs: reduced ? 1200 : 2800 });
+  busy = true; drawBtn.disabled = true; hintEl.textContent = 'Saving the draw…';
+  let winner;
+  try { winner = (await LD.nameRoll(pool, { minMs: reduced ? 1200 : 2800, until: LD.live.draw() })).name; }
+  catch (err) { console.error(err); busy = false; renderUI(); hintEl.textContent = err.message || 'The draw was not saved.'; return; }
   hintEl.textContent = 'Shuffling…';
   await shuffleRounds(reduced ? 1 : 7);
 
@@ -298,7 +288,7 @@ drawBtn.addEventListener('click', async () => {
 
   // swap to the full-size packet in place
   fitName(winner);
-  $('cardFoot').textContent = 'Lucky Draw · No. ' + String(winners.length + 1).padStart(2, '0');
+  $('cardFoot').textContent = 'Lucky Draw · No. ' + String(winnerCount() + 1).padStart(2, '0');
   hero.style.visibility = 'visible'; chosen.el.style.opacity = 0;
   card.style.zIndex = 2; flap.style.zIndex = 4;
   await sleep(250);
@@ -337,7 +327,6 @@ drawBtn.addEventListener('click', async () => {
   await nameSpan.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: reduced ? 1 : 550, easing: EASE }).finished;
 
   resultEl.textContent = 'Winner · ' + winner; resultEl.classList.add('show');
-  if (!winners.includes(winner)) winners.push(winner);
   shown = true; busy = false; persist(); renderUI();
   drawBtn.hidden = true; resetBtn.hidden = false; hintEl.textContent = 'Press New draw to go again';
 });
@@ -351,36 +340,17 @@ resetBtn.addEventListener('click', async () => {
   card.removeAttribute('style'); card.classList.remove('wide'); // back to packet size for the next draw
   envs.forEach(e => { e.el.classList.remove('lit'); e.el.style.opacity = 1; e.p = { x: W / 2, y: H + EH, r: 0 }; e.el.style.transform = tf(e.p); });
   await layoutGrid(true);
-  busy = false; namesBtn.disabled = false; renderUI();
+  busy = false; renderUI();
 });
 
 // ---------- UI ----------
-const drawerEl = $('drawer'), namesEl = $('names');
 function renderUI() {
-  const p = drawPool().length;
-  $('meta').textContent = `Draw ${String(winners.length + (shown ? 0 : 1)).padStart(2, '0')} · ${p === 1 ? '1 entry' : p + ' entries'}`;
-  namesBtn.textContent = `Names · ${names.length}`;
-  $('winnersBox').hidden = winners.length === 0;
-  $('winnersList').replaceChildren(...winners.map(w => Object.assign(document.createElement('li'), { textContent: w })));
-  $('removeWinners').checked = removeWinners;
+  const p = drawPool().length, live = LD.live.state() === 'on';
+  $('meta').textContent = `Draw ${String(winnerCount() + (shown ? 0 : 1)).padStart(2, '0')} · ${p === 1 ? '1 entry' : p + ' entries'}`;
   $('soundBtn').textContent = soundOn ? 'Sound on' : 'Sound off'; $('soundBtn').setAttribute('aria-pressed', String(soundOn));
-  if (!busy && !shown) { drawBtn.disabled = p === 0; hintEl.textContent = p === 0 ? 'Add names to start the draw' : 'Press Draw to shuffle the packets'; }
+  if (!busy && !shown) { drawBtn.disabled = !live || p === 0; hintEl.textContent = !live ? 'Sign in on the hub to draw' : p === 0 ? 'No entries left to draw' : 'Press Draw to shuffle the packets'; }
 }
-function openDrawer(open) {
-  drawerEl.classList.toggle('open', open); namesBtn.setAttribute('aria-expanded', String(open));
-  if (open) { namesEl.value = names.join('\n'); namesEl.focus(); }
-}
-namesBtn.addEventListener('click', () => openDrawer(!drawerEl.classList.contains('open')));
-$('closeDrawer').addEventListener('click', () => openDrawer(false));
-const refreshTable = () => { renderUI(); if (!busy && !shown) layoutGrid(true); };
-$('saveNames').addEventListener('click', () => {
-  names = [...new Set(namesEl.value.split('\n').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean))];
-  persist(); openDrawer(false); refreshTable();
-});
-$('clearWinners').addEventListener('click', () => { winners = []; persist(); refreshTable(); });
-$('removeWinners').addEventListener('change', e => { removeWinners = e.target.checked; persist(); refreshTable(); });
 $('soundBtn').addEventListener('click', () => { soundOn = !soundOn; persist(); renderUI(); });
-addEventListener('keydown', e => { if (e.key === 'Escape') openDrawer(false); });
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!busy && !shown) layoutGrid(false); }, 150); });
 
 renderUI();

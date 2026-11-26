@@ -115,7 +115,7 @@ async function autoScratch() {
   coin.style.opacity = 0;
 }
 
-let ticketNo = LD.load().log.length + 1;
+let ticketNo = Object.values(LD.live.winners()).filter(w => w && w.status === 'active').length + 1;
 const setNo = () => { document.getElementById('ticketNo').textContent = String(ticketNo).padStart(2, '0'); };
 LD.stage({
   accent: '#b3262b',
@@ -139,7 +139,7 @@ LD.stage({
   },
   async reset() {
     await ticket.animate([{ transform: 'translateY(-1.5%) rotateX(6deg) scale(1.02)' }, { transform: 'translateX(-120%) rotate(-8deg)' }], { duration: 600, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' }).finished;
-    document.getElementById('winName').textContent = ''; paintFoil(); ticketNo = LD.load().log.length + 1; setNo();
+    document.getElementById('winName').textContent = ''; paintFoil(); ticketNo = Object.values(LD.live.winners()).filter(w => w && w.status === 'active').length + 1; setNo();
     await ticket.animate([{ transform: 'translateX(120%) rotate(8deg)' }, { transform: 'none' }], { duration: 750, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }).finished;
     ticket.getAnimations().forEach(a => a.cancel());
   }
