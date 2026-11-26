@@ -297,6 +297,12 @@ firebase deploy --only hosting --project ys60-d283a
 - **Tested:** demo mode in headless Chromium, with no console errors. **Not yet tested:** live mode, which needs a staff test account. Rehearse on `?event=ys60-test` first; don't use `ys60` for demo data.
 - **Next:** rehearsal on `ys60-test`, then redeploy `studio/` (`firebase deploy --only hosting --project ys60-d283a`). No rules change is needed.
 
+### 2026-11-26 (desktop PC)
+- **Name roll** added to the studio (`lucky-draw-studio`, uncommitted; copied to `studio/` here, uncommitted). Before each design's own animation, names flicker from the pool for about 2.8 s, then fade. In live mode it runs while the draw is saved. Covers all 18 `LD.stage()` designs, and board, drum, packet and reel. Details in the studio's CLAUDE.md, "Name roll".
+- **Firebase fallback:** demo draws are no longer disabled if the Firebase import hangs (8 s timeout).
+- **Tested** in headless Chromium (demo mode): roll shows before the winner on wall, agung, board, packet, drum and reel, with no console errors. Reduced motion checked.
+- **Batch draws (requested, not built):** before the top prizes, batches of 10 or 20 consolation prizes are drawn first. Each consolation prize has its own name. Each batch is revealed as names arranged on screen, not a plain list. Still to decide: the arrangement layout.
+
 ---
 
 ## Open items / next steps
