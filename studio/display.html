@@ -27,7 +27,6 @@
         .prize-cell.filled { border-color: var(--accent-dim); box-shadow: 0 0 20px var(--accent-dim); }
         .prize-cell.next { border: 1px dashed var(--accent); }
         .prize-cell .cell-num { position: absolute; top: 8px; left: 12px; font-size: .75rem; color: var(--text-muted); }
-        .prize-cell .counter { position: absolute; top: 8px; right: 12px; font-size: .7rem; color: var(--text-muted); letter-spacing: .04em; }
         .prize-cell .winner { font-size: var(--winner-font-size, 1.6rem); line-height: 1.15; font-weight: 700; color: var(--accent); margin-bottom: 8px; overflow-wrap: anywhere; }
         .prize-cell .winner.empty { color: var(--text-muted); font-weight: 400; }
         .prize-cell .prize-name { font-size: var(--prize-name-font-size, .85rem); color: var(--text-muted); line-height: 1.3; overflow-wrap: anywhere; }
@@ -106,7 +105,6 @@ function renderGrid() {
         const cls = ['prize-cell', row.won ? 'filled' : '', !row.won && row.isNext ? 'next' : ''].join(' ').trim();
         cells.push(`<div class="${cls}">
             <span class="cell-num">${row.order}</span>
-            ${row.counter ? `<span class="counter">${esc(row.counter)}</span>` : ''}
             ${winner}
             <div class="prize-name">${esc(row.name)}</div>
         </div>`);
