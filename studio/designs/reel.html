@@ -616,6 +616,7 @@ addEventListener('resize', () => {
 });
 if (document.fonts) document.fonts.load('600 80px "Playfair Display"').then(() => { fitCache.clear(); panels.forEach(p => p.k = null); }).catch(() => {});
 
+LD.live.onChange(refresh); // re-check the spin button when the event connects or changes
 rebuildOrder(); renderUI();
 loop();
 </script>

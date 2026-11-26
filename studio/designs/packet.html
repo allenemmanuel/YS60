@@ -353,6 +353,7 @@ function renderUI() {
 $('soundBtn').addEventListener('click', () => { soundOn = !soundOn; persist(); renderUI(); });
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!busy && !shown) layoutGrid(false); }, 150); });
 
+LD.live.onChange(renderUI); // re-check the draw button when the event connects or changes
 renderUI();
 layoutGrid(false);
 })();

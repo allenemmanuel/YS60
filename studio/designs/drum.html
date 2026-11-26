@@ -617,6 +617,7 @@ function step(dt) {
   angle += omega * dt; drum.rotation.x = angle;
   key.intensity = 85 + Math.min(1, omega / MAX_W) * 20;
 }
+LD.live.onChange(renderNamesUI); // re-check the spin button when the event connects or changes
 renderNamesUI();
 
 // ---------- loop ----------

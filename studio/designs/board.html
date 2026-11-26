@@ -319,6 +319,7 @@ addEventListener('resize', () => {
 
 // start: the board is already showing the idle message (fully readable at rest), then does a short settle flip
 build();
+LD.live.onChange(renderUI); // re-check the draw button when the event connects or changes
 renderUI(); setStatus('Ready', 'off');
 const first = idleFrame(); tiles.forEach((t, k) => t.set(first[k]));
 })();
