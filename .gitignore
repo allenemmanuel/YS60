@@ -4,3 +4,6 @@ node_modules/
 app/dist/
 __pycache__/
 *.pyc
+
+# Staff name list from the company directory (personal data, keep off GitHub)
+materials/Senarai Nama Panduan Komunikasi.xlsx

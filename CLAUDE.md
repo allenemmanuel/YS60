@@ -310,6 +310,7 @@ firebase deploy --only hosting --project ys60-d283a
 - **22 sample names** (`LD.SAMPLE`) added to the **live** event `ys60` (no test event; decision). Remove them in the event app before the day.
 - **Demo mode removed from the studio** (core, hub and all 22 designs). Names, winners, prizes and stats come only from the event. Load-tested locally: all 22 designs and the hub load with no console errors, signed in and out. Deployed and committed as `5f0dee1`, pushed.
 - `materials/Senarai Hadiah Lucky Draw MAKYS.xlsx` (the MAKYS prize list, sample data for the revamp) committed to the repo as a reference file.
+- Name list added: `materials/Senarai Nama Panduan Komunikasi.xlsx`, 1,479 names from `PANDUAN KOMUNIKASI - 15 OKT 2026.pdf` (company directory, OCR text layer). The 11 OCR "!" marks were fixed to "t" (e.g. Samat, Megat). Three names with titles and punctuation (JP, @) were left as they are. Not yet imported into the event.
 - Still to do: prize paste/save screen; batch draw with trophy-shelf layout (one write per prize); import the 200 prizes from `materials/Senarai Hadiah Lucky Draw MAKYS.xlsx`. Prizes must be added before live draws work.
 
 ---
