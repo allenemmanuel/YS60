@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Draw · Lucky Draw Studio</title>
+<link rel="stylesheet" href="vendor/fonts/hub.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav" id="nav" aria-label="Pages"></nav>
+
+  <header>
+    <div class="eyebrow">Step 4 · Draw</div>
+    <h1>Draw the next prize</h1>
+    <p class="sub">Pick a look, then press its Draw button (or Space). Each draw is saved to the event before the winner appears.</p>
+  </header>
+
+  <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
+
+  <section class="panel" aria-labelledby="nextH">
+    <div class="head">
+      <h2 id="nextH">Next prize</h2>
+      <div class="row">
+        <div class="stat"><b id="left">—</b><span>names left</span></div>
+        <div class="stat"><b id="drawn">—</b><span>drawn</span></div>
+      </div>
+    </div>
+    <div class="big" style="padding: 18px">
+      <div class="label" id="counter"></div>
+      <div class="prize" id="prize" style="font-size: clamp(30px, 4vw, 52px)">—</div>
+    </div>
+    <div class="row">
+      <button id="surprise" class="primary" type="button">Surprise me</button>
+      <span class="sub" id="hint"></span>
+    </div>
+  </section>
+
+  <section aria-labelledby="designH">
+    <h2 id="designH">Designs</h2>
+    <p class="sub" style="margin-bottom: 12px">Each design opens on its own page. Its Draw button is only enabled while you are signed in.</p>
+    <div class="designs" id="designs"></div>
+  </section>
+</div>
+<script src="core.js"></script>
+<script src="pages.js"></script>
+<script>
+nav('draw.html');
+gate($('gate'));
+
+$('designs').replaceChildren(...LD.DESIGNS.map(d => {
+  const a = document.createElement('a'); a.href = `designs/${d.id}.html`;
+  a.innerHTML = `<b>${esc(d.title)}</b><span>Open design</span>`;
+  return a;
+}));
+
+function render() {
+  const on = LD.live.state() === 'on';
+  const rows = on ? prizeRows() : [];
+  const next = rows.find(p => !p.won);
+  $('left').textContent = on ? LD.pool().length : '—';
+  $('drawn').textContent = on ? rows.filter(p => p.won).length : '—';
+  $('prize').textContent = on && next ? next.name : on ? 'No prizes left to draw' : 'Sign in to see the next prize';
+  $('counter').textContent = next && next.counter ? `Collect at ${next.counter}` : '';
+  $('surprise').disabled = !on || !next;
+  $('hint').textContent = on ? '' : 'Sign in first.';
+}
+
+$('surprise').addEventListener('click', () => {
+  const pick = LD.pick(LD.DESIGNS);
+  location.href = `designs/${pick.id}.html`;
+});
+LD.live.onChange(render);
+render();
+</script>
+</body>
+</html>

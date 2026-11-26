@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prizes · Lucky Draw Studio</title>
+<link rel="stylesheet" href="vendor/fonts/hub.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav" id="nav" aria-label="Pages"></nav>
+
+  <header>
+    <div class="eyebrow">Step 2 · Prizes</div>
+    <h1>Prizes in draw order</h1>
+    <p class="sub">Prizes are drawn from the top of this list. A prize that has been drawn is marked with its winner.</p>
+  </header>
+
+  <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="addH">
+      <div class="head"><h2 id="addH">Add prizes</h2></div>
+      <p class="sub">Paste one prize per line. They are added to the end of the list, in the order pasted.</p>
+      <label class="sub" for="counter">Counter (optional, applies to every line)</label>
+      <input id="counter" class="field" type="text" placeholder="e.g. KAUNTER 1" autocomplete="off">
+      <textarea id="prizes" spellcheck="false" aria-label="Prizes, one per line" placeholder="FC Abdominal Wheel Roller&#10;TEFAL Steam Iron"></textarea>
+      <div class="row">
+        <button id="save" class="primary" type="button">Add prizes</button>
+        <span class="msg" id="msg" role="status"></span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="listH">
+      <div class="head">
+        <h2 id="listH">The list</h2>
+        <div class="stat"><b id="left">0</b><span>left to draw</span></div>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>#</th><th>Prize</th><th>Counter</th><th>Status</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p class="empty" id="empty" hidden>No prizes yet. Paste prizes on the left.</p>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="core.js"></script>
+<script src="pages.js"></script>
+<script>
+nav('prizes.html');
+gate($('gate'));
+
+function render() {
+  const on = LD.live.state() === 'on';
+  $('save').disabled = !on;
+  $('prizes').disabled = !on;
+  if (!on) { $('rows').replaceChildren(); $('left').textContent = '—'; $('empty').hidden = true; return; }
+  const rows = prizeRows();
+  $('rows').innerHTML = rows.map(p => {
+    const status = p.won ? `<span class="tag won">Won by ${esc(p.winner)}</span>` : p.isNext ? '<span class="tag next">Next</span>' : '<span class="tag">Waiting</span>';
+    return `<tr><td class="num">${p.order}</td><td class="name">${esc(p.name)}</td><td class="small">${esc(p.counter || '—')}</td><td>${status}</td></tr>`;
+  }).join('');
+  $('left').textContent = rows.filter(p => !p.won).length;
+  $('empty').hidden = rows.length > 0;
+}
+
+$('save').addEventListener('click', async () => {
+  const lines = $('prizes').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { $('msg').classList.add('err'); $('msg').textContent = 'Paste at least one prize.'; return; }
+  const btn = $('save'); btn.disabled = true; $('msg').classList.remove('err');
+  let done = 0;
+  try {
+    for (const line of lines) {
+      await LD.live.addPrize(line, $('counter').value);
+      done++; $('msg').textContent = `Adding… ${done} of ${lines.length}`;
+    }
+    $('prizes').value = '';
+    $('msg').textContent = `${done} prize${done === 1 ? '' : 's'} added.`;
+  } catch (err) {
+    $('msg').classList.add('err'); $('msg').textContent = `Stopped after ${done} of ${lines.length}: ${err.message || err}`;
+  } finally { btn.disabled = LD.live.state() !== 'on'; }
+});
+LD.live.onChange(render);
+render();
+</script>
+</body>
+</html>

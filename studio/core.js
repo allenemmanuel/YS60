@@ -415,19 +415,20 @@
     return fresh.length;
   }
   // Add a prize at the end of the draw order.
-  async function liveAddPrize(name) {
+  async function liveAddPrize(name, counter) {
     const { D, db } = live.fb, E = `events/${EVENT}`, by = 'studio';
     const text = name.replace(/\s+/g, ' ').trim().slice(0, 200);
+    const where = String(counter || '').replace(/\s+/g, ' ').trim().slice(0, 60);
     if (!text) return;
     const order = livePrizes().reduce((m, p) => Math.max(m, p.order), 0) + 1;
     const id = D.push(D.ref(db, `${E}/prizes`)).key;
     await D.update(D.ref(db), {
-      [`${E}/prizes/${id}`]: { order, name: text },
+      [`${E}/prizes/${id}`]: where ? { order, name: text, counter: where } : { order, name: text },
       [`${E}/log/${D.push(D.ref(db, `${E}/log`)).key}`]: { type: 'prize-add', by, prizeId: id, detail: text, at: D.serverTimestamp() }
     });
   }
 
   window.LD = { DESIGNS, design, reduced, load, save, pool, randInt, pick, shuffle, ease, tween, sleep, audio, snd, confetti, fitText, chrome, busy, stage, nameRoll,
-    live: { event: EVENT, onChange: onLive, state: liveState, message: liveMessage, user: () => live.user, prizes: livePrizes, nextPrize: liveNextPrize, winners: () => live.winners,
+    live: { event: EVENT, onChange: onLive, state: liveState, message: liveMessage, user: () => live.user, prizes: livePrizes, nextPrize: liveNextPrize, winners: () => live.winners, guests: () => live.guests,
       signIn: liveSignIn, signOut: liveSignOut, addNames: liveAddNames, addPrize: liveAddPrize, draw: liveDraw } };
 })();

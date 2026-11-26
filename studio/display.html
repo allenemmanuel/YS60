@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Display · Lucky Draw Studio</title>
+<link rel="stylesheet" href="vendor/fonts/hub.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav" id="nav" aria-label="Pages"></nav>
+
+  <header>
+    <div class="eyebrow">Step 3 · Display</div>
+    <h1>Prize and winners</h1>
+    <p class="sub">For the screen at the venue. Updates by itself after each draw. Nothing on this page draws or changes data.</p>
+  </header>
+
+  <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
+
+  <section class="big" aria-live="polite">
+    <div class="label" id="label">Next prize</div>
+    <div class="prize" id="prize">—</div>
+    <div class="sub" id="counter"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="winH">
+    <div class="head">
+      <h2 id="winH">Winners</h2>
+      <div class="stat"><b id="drawn">0</b><span>drawn so far</span></div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>#</th><th>Prize</th><th>Winner</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p class="empty" id="empty" hidden>No winners yet.</p>
+    </div>
+  </section>
+</div>
+<script src="core.js"></script>
+<script src="pages.js"></script>
+<script>
+nav('display.html');
+gate($('gate'));
+
+function render() {
+  const on = LD.live.state() === 'on';
+  if (!on) { $('prize').textContent = '—'; $('counter').textContent = ''; $('rows').replaceChildren(); $('drawn').textContent = '—'; $('empty').hidden = true; return; }
+  const rows = prizeRows();
+  const next = rows.find(p => !p.won);
+  if (next) {
+    $('label').textContent = 'Next prize';
+    $('prize').textContent = next.name;
+    $('counter').textContent = next.counter ? `Collect at ${next.counter}` : '';
+  } else {
+    $('label').textContent = rows.length ? 'All prizes drawn' : 'No prizes yet';
+    $('prize').textContent = '—';
+    $('counter').textContent = '';
+  }
+  const won = rows.filter(p => p.won);
+  $('drawn').textContent = won.length;
+  $('rows').innerHTML = won.map(p => `<tr><td class="num">${p.order}</td><td class="name">${esc(p.name)}</td><td class="name">${esc(p.winner)}</td></tr>`).join('');
+  $('empty').hidden = won.length > 0;
+}
+
+LD.live.onChange(render);
+render();
+</script>
+</body>
+</html>

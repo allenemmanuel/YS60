@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Names · Lucky Draw Studio</title>
+<link rel="stylesheet" href="vendor/fonts/hub.css">
+<link rel="stylesheet" href="pages.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav" id="nav" aria-label="Pages"></nav>
+
+  <header>
+    <div class="eyebrow">Step 1 · Names</div>
+    <h1>The names in the draw</h1>
+    <p class="sub">Names in this list can win. A name that has won is marked and is not drawn again. Adding names never removes anyone.</p>
+  </header>
+
+  <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="addH">
+      <div class="head"><h2 id="addH">Add names</h2></div>
+      <p class="sub">Paste one name per line. Names already in the event are skipped.</p>
+      <textarea id="names" spellcheck="false" aria-label="Names, one per line" placeholder="Name Surname&#10;Name Surname"></textarea>
+      <div class="row">
+        <button id="save" class="primary" type="button">Add names</button>
+        <span class="msg" id="msg" role="status"></span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="listH">
+      <div class="head">
+        <h2 id="listH">Everyone in the event</h2>
+        <div class="stat"><b id="count">0</b><span id="countLabel">names</span></div>
+      </div>
+      <input id="filter" class="field" type="search" placeholder="Search a name" aria-label="Search names">
+      <div class="scroll">
+        <table>
+          <thead><tr><th>#</th><th>Name</th><th>Status</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p class="empty" id="empty" hidden>No names yet. Paste names on the left.</p>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="core.js"></script>
+<script src="pages.js"></script>
+<script>
+nav('names.html');
+gate($('gate'));
+
+const winnersByGuest = () => {
+  const out = {};
+  for (const [prizeId, w] of Object.entries(LD.live.winners())) if (w && w.status === 'active') out[w.guestId] = prizeId;
+  return out;
+};
+
+function render() {
+  const on = LD.live.state() === 'on';
+  $('save').disabled = !on;
+  $('names').disabled = !on;
+  if (!on) { $('rows').replaceChildren(); $('count').textContent = '—'; $('empty').hidden = true; return; }
+  const won = winnersByGuest();
+  const q = $('filter').value.trim().toLowerCase();
+  const all = Object.entries(LD.live.guests()).filter(([, g]) => g).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const shown = all.filter(([, g]) => !q || g.name.toLowerCase().includes(q));
+  $('rows').innerHTML = shown.map(([id, g], i) => {
+    const status = won[id] ? '<span class="tag won">Won</span>' : '<span class="tag">In the draw</span>';
+    return `<tr><td class="num">${i + 1}</td><td class="name">${esc(g.name)}</td><td>${status}</td></tr>`;
+  }).join('');
+  $('count').textContent = all.length;
+  $('countLabel').textContent = all.length === 1 ? 'name' : 'names';
+  $('empty').hidden = all.length > 0;
+}
+
+$('filter').addEventListener('input', render);
+$('save').addEventListener('click', async () => {
+  const btn = $('save'); btn.disabled = true; $('msg').classList.remove('err'); $('msg').textContent = 'Saving…';
+  try {
+    const n = await LD.live.addNames($('names').value.split('\n'));
+    $('names').value = '';
+    $('msg').textContent = n ? `${n} name${n === 1 ? '' : 's'} added.` : 'No new names: they were all already in the event.';
+  } catch (err) {
+    $('msg').classList.add('err'); $('msg').textContent = 'Could not save the names: ' + (err.message || err);
+  } finally { btn.disabled = LD.live.state() !== 'on'; }
+});
+LD.live.onChange(render);
+render();
+</script>
+</body>
+</html>

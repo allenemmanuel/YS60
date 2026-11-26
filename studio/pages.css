@@ -1,0 +1,83 @@
+/* Shared styles for the four event pages: names.html, prizes.html, display.html, draw.html */
+:root {
+  --bg: #0d0b09; --surface: #17140f; --surface-2: #1f1b15; --ink: #f3ece0; --muted: #a79d8c; --line: #332c22;
+  --gold: #e2bd72; --gold-deep: #a9792c; --ok: #7fc59a; --warn: #e0a06a;
+  --display: "Cormorant Garamond", Garamond, Georgia, serif;
+  --body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(120% 60% at 50% 0%, #1d170f 0%, var(--bg) 60%) fixed, var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 26px;
+  padding-block: 24px 56px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+h1 { margin: 0; font-family: var(--display); font-weight: 600; font-size: clamp(36px, 5vw, 56px); line-height: 1; }
+h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 600; font-size: 28px; }
+p { margin: 0; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
+.sub { color: var(--muted); font-size: 13px; }
+code { font-size: 13px; }
+
+button, .btn { font: 600 13px/1 var(--body); letter-spacing: .08em; cursor: pointer; border-radius: 10px; padding: 12px 18px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink); transition: border-color .2s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+button:hover, .btn:hover { border-color: var(--gold-deep); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.primary { background: linear-gradient(180deg, #f3d79a, var(--gold) 50%, var(--gold-deep)); color: #22170a; border-color: #f3d79a; }
+
+/* top navigation, the same on every page */
+.nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.nav a { font: 600 13px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-decoration: none; padding: 10px 14px; border-radius: 10px; border: 1px solid transparent; }
+.nav a:hover { color: var(--ink); border-color: var(--line); }
+.nav a[aria-current="page"] { color: #22170a; background: var(--gold); }
+.nav .spacer { flex: 1; }
+.nav .status { font-size: 13px; color: var(--muted); }
+.nav .status.on { color: var(--ok); }
+
+/* sign-in box */
+.gate { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 14px; }
+.gate.on { border-color: rgba(127,197,154,.4); }
+.gate form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.gate input { font: 500 15px/1.2 var(--body); color: var(--ink); background: #0f0d0a; border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; min-width: 220px; }
+.gate .msg { color: var(--warn); font-size: 13px; flex-basis: 100%; }
+
+/* panels and layout */
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.panel .head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: space-between; }
+textarea, .field { width: 100%; background: #0f0d0a; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font: 14px/1.5 var(--body); }
+textarea { min-height: 240px; resize: vertical; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.row .field { width: auto; flex: 1 1 200px; }
+.msg { font-size: 14px; color: var(--ok); min-height: 1.4em; }
+.msg.err { color: var(--warn); }
+
+.stat { display: grid; gap: 2px; }
+.stat b { font: 600 30px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.num { color: var(--gold); font-variant-numeric: tabular-nums; width: 4ch; }
+td.name { font-weight: 600; overflow-wrap: anywhere; }
+td.small { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.scroll { max-height: 62vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+.scroll th { position: sticky; top: 0; background: var(--surface); }
+.empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
+.tag { font-size: 11px; font-weight: 600; letter-spacing: .06em; padding: 3px 8px; border-radius: 999px; background: #262017; color: var(--muted); }
+.tag.won { background: #3a2c12; color: var(--gold); }
+.tag.next { background: #16271d; color: var(--ok); }
+
+/* display page: big screen */
+.big { display: grid; gap: 14px; text-align: center; padding: 32px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.big .label { font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); }
+.big .prize { font: 600 clamp(40px, 6vw, 84px)/1.05 var(--display); }
+.big .who { font: 600 clamp(28px, 4vw, 52px)/1.1 var(--display); color: var(--gold); min-height: 1.2em; }
+
+/* draw page: design launcher */
+.designs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.designs a { display: grid; gap: 4px; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; }
+.designs a:hover { border-color: var(--gold-deep); }
+.designs a b { font: 700 20px/1.1 var(--display); }
+.designs a span { font-size: 12px; color: var(--muted); }
