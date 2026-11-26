@@ -5,8 +5,10 @@ Lucky draw system for company events (Kumpulan Yayasan Sabah). Top management wa
 many separate design pages. Current goal: smoother, more polished animations, and more designs.
 
 ## Structure
-- `index.html` — hub: sign-in (shared password), next prize, design cards, Surprise me (random design),
-  names box (adds names to the event), prize box, winners list and Copy list. All data comes from the event.
+- `index.html` — hub: links to the four event pages, with live counts. The shared top bar is on every page.
+- `names.html`, `prizes.html`, `display.html`, `draw.html` — the four event pages (2026-11-26). Shared `pages.css` and
+  `pages.js`. All data comes from the event. Draw lists the 22 designs; each design draws on its own page.
+  The old single-page hub (design preview cards, Copy list) is in git history (commit `c8f81c9` and earlier).
 - `core.js` — shared by every page (`window.LD`): sign-in, reads and writes to the event database
   (`events/{EVENT}`), the atomic draw claim (`LD.live.draw`), the shared name roll (`LD.nameRoll`),
   fair crypto-random pick, easing + tween helpers, Web Audio sound kit, 2D confetti, `fitText`,
