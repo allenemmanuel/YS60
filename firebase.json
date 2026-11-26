@@ -22,7 +22,13 @@
       "**/node_modules/**",
       "*.md",
       "*.code-workspace",
-      "SORT"
+      "SORT",
+      "studio/CLAUDE.md",
+      "studio/.claude/**",
+      "studio/.gitignore",
+      "studio/skills-lock.json",
+      "studio/tools/**",
+      "studio/concepts/**"
     ]
   }
 }
