@@ -1,78 +1,77 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Lucky Draw Studio · Hub</title>
-<link rel="stylesheet" href="vendor/fonts/hub.css">
-<link rel="stylesheet" href="pages.css">
-<style>
-.steps { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-.step { display: grid; gap: 8px; align-content: start; padding: 20px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color .2s, transform .15s; }
-.step:hover { border-color: var(--gold-deep); transform: translateY(-2px); }
-.step .n { font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
-.step h2 { margin: 0; font-size: 30px; }
-.step p { color: var(--muted); font-size: 14px; }
-.step .count { font: 600 26px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; }
-.step .count small { font: 500 12px/1.2 var(--body); color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-left: 6px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="pages.css">
+    <title>YS60 · Lucky Draw Hub</title>
 </head>
 <body>
-<div class="wrap">
-  <nav class="nav" id="nav" aria-label="Pages"></nav>
+    <div class="hub-container">
+        <h1>MALAM SAMBUTAN ULANG TAHUN 60</h1>
+        <h1>YAYASAN SABAH</h1>
+        <p class="subtitle">Cabutan Tiket Bertuah</p>
 
-  <header>
-    <div class="eyebrow">Lucky Draw Studio · Malam Sambutan Ulang Tahun ke-60 · Yayasan Sabah</div>
-    <h1>Lucky draw hub</h1>
-    <p class="sub">Work through the steps in order: names, then prizes, then the screen for the venue, then the draw. Everything is saved to the live event as you go.</p>
-  </header>
+        <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
 
-  <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
+        <div class="nav-cards">
+            <a href="names.html" class="nav-card">
+                <i class="fas fa-users"></i>
+                <div class="nav-card-content">
+                    <h3>Names</h3>
+                    <p>Add the guest names to the draw</p>
+                </div>
+                <span class="count" id="cNames">—</span>
+                <i class="fas fa-chevron-right chev"></i>
+            </a>
 
-  <section class="steps" aria-label="Steps">
-    <a class="step" href="names.html">
-      <span class="n">Step 1</span>
-      <h2>Names</h2>
-      <p>Paste the guest names. See who is in the draw and who has won.</p>
-      <div class="count" id="cNames">—<small>names in the event</small></div>
-    </a>
-    <a class="step" href="prizes.html">
-      <span class="n">Step 2</span>
-      <h2>Prizes</h2>
-      <p>Paste the prizes in draw order, with their KAUNTER labels.</p>
-      <div class="count" id="cPrizes">—<small>prizes left</small></div>
-    </a>
-    <a class="step" href="display.html">
-      <span class="n">Step 3</span>
-      <h2>Display</h2>
-      <p>The screen for the venue. Shows the next prize and the winners. Read only.</p>
-      <div class="count" id="cDisplay">—<small>drawn so far</small></div>
-    </a>
-    <a class="step" href="draw.html">
-      <span class="n">Step 4</span>
-      <h2>Draw</h2>
-      <p>Draw the next prize. Pick one of the 22 designs.</p>
-      <div class="count" id="cDraw">—<small>names left</small></div>
-    </a>
-  </section>
-</div>
+            <a href="prizes.html" class="nav-card">
+                <i class="fas fa-gift"></i>
+                <div class="nav-card-content">
+                    <h3>Prizes</h3>
+                    <p>Set up the prizes in draw order</p>
+                </div>
+                <span class="count" id="cPrizes">—</span>
+                <i class="fas fa-chevron-right chev"></i>
+            </a>
+
+            <a href="display.html" class="nav-card">
+                <i class="fas fa-tv"></i>
+                <div class="nav-card-content">
+                    <h3>Prize Display</h3>
+                    <p>Screen for the venue: next prize and winners</p>
+                </div>
+                <span class="count" id="cDisplay">—</span>
+                <i class="fas fa-chevron-right chev"></i>
+            </a>
+
+            <a href="draw.html" class="nav-card">
+                <i class="fas fa-random"></i>
+                <div class="nav-card-content">
+                    <h3>Draw</h3>
+                    <p>Run the lucky draw and select winners</p>
+                </div>
+                <span class="count" id="cDraw">—</span>
+                <i class="fas fa-chevron-right chev"></i>
+            </a>
+        </div>
+    </div>
 <script src="core.js"></script>
 <script src="pages.js"></script>
 <script>
-nav('index.html');
 gate($('gate'));
 
 function render() {
   const on = LD.live.state() === 'on';
-  if (!on) {
-    ['cNames', 'cPrizes', 'cDisplay', 'cDraw'].forEach(id => { $(id).firstChild.textContent = '—'; });
-    return;
-  }
+  if (!on) { ['cNames', 'cPrizes', 'cDisplay', 'cDraw'].forEach(id => { $(id).textContent = '—'; }); return; }
   const rows = prizeRows();
-  $('cNames').firstChild.textContent = Object.keys(LD.live.guests()).length;
-  $('cPrizes').firstChild.textContent = rows.filter(p => !p.won).length;
-  $('cDisplay').firstChild.textContent = rows.filter(p => p.won).length;
-  $('cDraw').firstChild.textContent = LD.pool().length;
+  $('cNames').textContent = Object.keys(LD.live.guests()).length;
+  $('cPrizes').textContent = rows.filter(p => !p.won).length;
+  $('cDisplay').textContent = rows.filter(p => p.won).length;
+  $('cDraw').textContent = LD.pool().length;
 }
 
 LD.live.onChange(render);
