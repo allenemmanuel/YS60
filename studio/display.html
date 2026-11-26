@@ -1,74 +1,168 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Display · Lucky Draw Studio</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="pages.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prize Display · YS60</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0d0d14;
+            --card-bg: #16161e;
+            --accent: #c9a227;
+            --accent-dim: rgba(201, 162, 39, 0.3);
+            --text: #f0f0f0;
+            --text-muted: rgba(255,255,255,0.6);
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; height: 100vh; overflow: hidden; background: var(--bg-dark); color: var(--text); font-family: 'Inter', sans-serif; }
+
+        .main { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .grid-container { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 2px; padding: 2px; }
+
+        .prize-cell { position: relative; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; padding: 6px;
+            min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transition: border-color .2s, box-shadow .2s; }
+        .prize-cell.blank { visibility: hidden; }
+        .prize-cell.filled { border-color: var(--accent-dim); box-shadow: 0 0 20px var(--accent-dim); }
+        .prize-cell.next { border: 1px dashed var(--accent); }
+        .prize-cell .cell-num { position: absolute; top: 8px; left: 12px; font-size: .75rem; color: var(--text-muted); }
+        .prize-cell .counter { position: absolute; top: 8px; right: 12px; font-size: .7rem; color: var(--text-muted); letter-spacing: .04em; }
+        .prize-cell .winner { font-size: var(--winner-font-size, 1.6rem); line-height: 1.15; font-weight: 700; color: var(--accent); margin-bottom: 8px; overflow-wrap: anywhere; }
+        .prize-cell .winner.empty { color: var(--text-muted); font-weight: 400; }
+        .prize-cell .prize-name { font-size: var(--prize-name-font-size, .85rem); color: var(--text-muted); line-height: 1.3; overflow-wrap: anywhere; }
+
+        .ctrl-bar { position: fixed; bottom: 12px; right: 12px; display: flex; gap: 12px; align-items: center; z-index: 1000; transition: opacity .5s; }
+        .ctrl-bar.faded { opacity: 0; pointer-events: none; }
+        .ctrl-bar a, .ctrl-bar button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: var(--card-bg); color: var(--text);
+            display: flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; transition: all .2s; }
+        .ctrl-bar a:hover, .ctrl-bar button:hover { background: var(--accent); border-color: var(--accent); color: var(--bg-dark); }
+        .ctrl-bar button:disabled { opacity: .35; cursor: default; }
+        .ctrl-bar .page-indicator { font-size: .9rem; color: var(--text-muted); min-width: 6ch; text-align: center; }
+
+        /* sign-in box, shown over the grid until the event is connected */
+        .gate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(13,13,20,.92); z-index: 2000; }
+        .gate[hidden] { display: none; }
+        .gate form { display: grid; gap: 12px; width: min(340px, 90vw); background: var(--card-bg); border: 1px solid rgba(255,255,255,.15); border-radius: 12px; padding: 24px; }
+        .gate h2 { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin: 0; }
+        .gate input { font: 15px 'Inter', sans-serif; color: var(--text); background: #0f0d0a; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; padding: 10px 12px; }
+        .gate button { font: 600 14px 'Inter', sans-serif; border-radius: 8px; padding: 10px; border: 0; background: var(--accent); color: var(--bg-dark); cursor: pointer; }
+        .gate .msg { color: #f0b27a; font-size: 13px; min-height: 1.2em; margin: 0; }
+
+        @media (max-width: 900px) {
+            .grid-container { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(9, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .grid-container { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(13, 1fr); }
+            .prize-cell { padding: 4px; }
+        }
+    </style>
 </head>
 <body>
-<div class="wrap wide">
-  <nav class="nav" id="nav" aria-label="Pages"></nav>
+    <main class="main">
+        <div id="gridContainer" class="grid-container" aria-live="polite"></div>
+    </main>
 
-  <header>
-    <div class="eyebrow">Step 3 · Display</div>
-    <h1>Prize and winners</h1>
-    <p class="sub">For the screen at the venue. Updates by itself after each draw. Nothing on this page draws or changes data.</p>
-  </header>
-
-  <div class="gate" id="gate" role="region" aria-label="Sign in"></div>
-
-  <section class="big" aria-live="polite">
-    <div class="label" id="label">Next prize</div>
-    <div class="prize" id="prize">—</div>
-    <div class="sub" id="counter"></div>
-  </section>
-
-  <section class="panel" aria-labelledby="winH">
-    <div class="head">
-      <h2 id="winH">Winners</h2>
-      <div class="stat"><b id="drawn">0</b><span>drawn so far</span></div>
+    <div class="gate" id="gate" hidden>
+        <form id="signin">
+            <h2>Sign in to show the prizes</h2>
+            <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
+            <button type="submit">Sign in</button>
+            <p class="msg" id="signinMsg" role="status"></p>
+        </form>
     </div>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>#</th><th>Prize</th><th>Winner</th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-      <p class="empty" id="empty" hidden>No winners yet.</p>
+
+    <div class="ctrl-bar" id="ctrlBar">
+        <button id="prev" title="Previous page"><i class="fas fa-chevron-left"></i></button>
+        <span class="page-indicator" id="pageIndicator">(1/1)</span>
+        <button id="next" title="Next page"><i class="fas fa-chevron-right"></i></button>
+        <a href="index.html" title="Hub"><i class="fas fa-home"></i></a>
+        <button id="fs" title="Fullscreen"><i class="fas fa-expand" id="fsIcon"></i></button>
+        <a href="prizes.html" title="Prizes"><i class="fas fa-gift"></i></a>
     </div>
-  </section>
-</div>
+
 <script src="core.js"></script>
 <script src="pages.js"></script>
 <script>
-nav('display.html');
-gate($('gate'));
+// Venue screen: 25 prizes per page in a 5 × 5 grid, in draw order. Each prize's winner
+// appears in its own cell once it has been drawn. Read only.
+const PER_PAGE = 25;
+let page = 0;
 
-function render() {
-  const on = LD.live.state() === 'on';
-  if (!on) { $('prize').textContent = '—'; $('counter').textContent = ''; $('rows').replaceChildren(); $('drawn').textContent = '—'; $('empty').hidden = true; return; }
-  const rows = prizeRows();
-  const next = rows.find(p => !p.won);
-  if (next) {
-    $('label').textContent = 'Next prize';
-    $('prize').textContent = next.name;
-    $('counter').textContent = next.counter ? `Collect at ${next.counter}` : '';
-  } else {
-    $('label').textContent = rows.length ? 'All prizes drawn' : 'No prizes yet';
-    $('prize').textContent = '—';
-    $('counter').textContent = '';
-  }
-  const won = rows.filter(p => p.won);
-  $('drawn').textContent = won.length;
-  $('rows').innerHTML = won.map(p => `<tr><td class="num">${p.order}</td><td class="name">${esc(p.name)}</td><td class="name">${esc(p.winner)}</td></tr>`).join('');
-  $('empty').hidden = won.length > 0;
+function pageCount(rows) { return Math.max(1, Math.ceil(rows.length / PER_PAGE)); }
+
+function renderGrid() {
+    const on = LD.live.state() === 'on';
+    const rows = on ? prizeRows() : [];
+    const pages = pageCount(rows);
+    page = Math.min(page, pages - 1);
+
+    const cells = [];
+    for (let i = 0; i < PER_PAGE; i++) {
+        const row = rows[page * PER_PAGE + i];
+        if (!row) { cells.push('<div class="prize-cell blank"></div>'); continue; }
+        const winner = row.won ? `<div class="winner">${esc(row.winner)}</div>`
+                               : '<div class="winner empty">—</div>';
+        const cls = ['prize-cell', row.won ? 'filled' : '', !row.won && row.isNext ? 'next' : ''].join(' ').trim();
+        cells.push(`<div class="${cls}">
+            <span class="cell-num">${row.order}</span>
+            ${row.counter ? `<span class="counter">${esc(row.counter)}</span>` : ''}
+            ${winner}
+            <div class="prize-name">${esc(row.name)}</div>
+        </div>`);
+    }
+    $('gridContainer').innerHTML = cells.join('');
+    $('pageIndicator').textContent = `(${page + 1}/${pages})`;
+    $('prev').disabled = pages <= 1;
+    $('next').disabled = pages <= 1;
 }
 
-LD.live.onChange(render);
-render();
+function go(delta) {
+    const pages = pageCount(prizeRows());
+    page = (page + delta + pages) % pages;
+    renderGrid();
+}
+$('prev').addEventListener('click', () => go(-1));
+$('next').addEventListener('click', () => go(1));
+document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') go(-1);
+    if (e.key === 'ArrowRight') go(1);
+});
+
+$('fs').addEventListener('click', () => {
+    if (!document.fullscreenElement) { document.documentElement.requestFullscreen?.(); $('fsIcon').className = 'fas fa-compress'; }
+    else { document.exitFullscreen?.(); $('fsIcon').className = 'fas fa-expand'; }
+});
+
+// Hide the control bar when the mouse is still
+let idleTimer;
+function showControls() {
+    $('ctrlBar').classList.remove('faded');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => $('ctrlBar').classList.add('faded'), 2000);
+}
+document.addEventListener('mousemove', showControls);
+document.addEventListener('mousedown', showControls);
+showControls();
+
+// Sign-in box, shown only until the event is connected
+$('signin').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button'); btn.disabled = true;
+    try { await LD.live.signIn($('pw').value); }
+    catch (err) {
+        $('signinMsg').textContent = err.code === 'wrong-password' ? 'Wrong password.' : 'Could not sign in: ' + (err.message || err);
+        btn.disabled = false;
+    }
+});
+
+function onState() {
+    const s = LD.live.state();
+    $('gate').hidden = s === 'on';
+    renderGrid();
+}
+LD.live.onChange(onState);
+onState();
 </script>
 </body>
 </html>
