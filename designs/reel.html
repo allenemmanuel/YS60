@@ -624,11 +624,15 @@ function renderUI() {
   $('musicBtn').textContent = musicOn ? 'Music on' : 'Music off'; $('musicBtn').setAttribute('aria-pressed', String(musicOn));
   if (state === 'idle') { spinBtn.disabled = p === 0; hintEl.textContent = p === 0 ? 'Add names to start the draw' : 'Watch for your name, then press Spin'; }
 }
-spinBtn.addEventListener('click', () => {
-  if (state !== 'idle' || !order.length) return;
+let rolling = false; // names roll before the reel starts
+spinBtn.addEventListener('click', async () => {
+  if (rolling || state !== 'idle' || !order.length) return;
   initAudio();
+  rolling = true; spinBtn.disabled = true; namesBtn.disabled = true; hintEl.textContent = 'Drawing…';
   winner = LD.pick(order);
-  openDrawer(false); spinBtn.disabled = true; namesBtn.disabled = true; hintEl.textContent = 'Spinning…';
+  await LD.nameRoll(order, { minMs: reduced ? 1200 : 2800 });
+  rolling = false;
+  openDrawer(false); hintEl.textContent = 'Spinning…';
   state = 'accel'; t0 = spinStart = performance.now(); decel = null; rollAcc = 0; setMusicLevel();
 });
 resetBtn.addEventListener('click', () => {

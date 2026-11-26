@@ -226,7 +226,53 @@
     store(s); return s;
   }
 
-  // Standard page flow for the newer designs: Draw -> design's own animation -> record -> New draw.
+  // Shared name roll, shown before every design's own animation. Names flicker past from the draw pool,
+  // slow down at the end and fade out, so the audience sees the names before the winner is shown.
+  // `until` (optional) is a promise for the draw being saved: the roll lasts at least `minMs` and until it settles.
+  // Resolves with the `until` value; rejects straight away if `until` fails.
+  function nameRoll(names, { accent = '#f2ead8', minMs = 2800, until = null } = {}) {
+    if (!names || !names.length) return Promise.resolve(until ? until : undefined);
+    if (!document.getElementById('ld-roll-style')) {
+      const st = document.createElement('style'); st.id = 'ld-roll-style';
+      st.textContent = `.ld-roll{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+        background:rgba(6,10,18,.72);color:var(--ld-roll-accent,#f2ead8);font-family:system-ui,sans-serif;text-align:center;pointer-events:none;
+        transition:opacity .35s ease;opacity:1}
+        .ld-roll.out{opacity:0}
+        .ld-roll-name{font-size:min(9vw,16vh);font-weight:600;line-height:1.05;max-width:90vw;overflow-wrap:anywhere;text-wrap:balance;will-change:transform}
+        .ld-roll-label{font:600 12px/1 system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;opacity:.7}`;
+      document.head.appendChild(st);
+    }
+    const el = document.createElement('div'); el.className = 'ld-roll'; el.setAttribute('aria-hidden', 'true');
+    el.style.setProperty('--ld-roll-accent', accent);
+    el.innerHTML = '<div class="ld-roll-name"></div><div class="ld-roll-label">Names in the draw</div>';
+    const nameEl = el.firstChild;
+    document.body.appendChild(el);
+    const start = performance.now(), slowFrom = minMs * 0.6;
+    let settled = false, value, failure = null, timer = null;
+    const wait = until ? Promise.resolve(until) : Promise.resolve(undefined);
+    wait.then(v => { settled = true; value = v; }, e => { failure = e; });
+    return new Promise((resolve, reject) => {
+      const finish = () => {
+        clearTimeout(timer);
+        el.classList.add('out');
+        setTimeout(() => el.remove(), 400);
+        failure ? reject(failure) : resolve(value);
+      };
+      const tick = () => {
+        nameEl.textContent = names[randInt(names.length)];
+        const t = performance.now() - start;
+        if (failure) return finish();
+        if (settled && t >= minMs) return finish();
+        // reduced motion: slower changes; otherwise a quick flicker that eases out to about 4x slower near the end
+        const base = reduced ? 520 : 75;
+        const slow = t > slowFrom ? 1 + ((t - slowFrom) / (minMs - slowFrom)) * 3 : 1;
+        timer = setTimeout(tick, base * slow);
+      };
+      tick();
+    });
+  }
+
+  // Standard page flow for the newer designs: Draw -> name roll -> design's own animation -> record -> New draw.
   // Expects #draw, #reset, #meta, #hint, #soundBtn and #result in the page.
   function stage({ draw, reset, accent, idleHint = 'Press Draw or Space to start', drawingHint = 'Drawing…' }) {
     const $ = id => document.getElementById(id);
@@ -247,15 +293,20 @@
       const p = pool(); if (state !== 'idle' || !p.length) return;
       audio(); state = 'busy'; busy(true); drawBtn.disabled = true; result.textContent = '';
       let w, prizeName = currentPrize();
+      const rollOpts = { accent, minMs: reduced ? 1200 : 2800 };
       if (liveOn()) {
+        // The names roll while the draw is saved; the winner is shown only after the server accepts it.
         hint.textContent = 'Saving the draw…';
-        try { const claim = await liveDraw(); w = claim.name; prizeName = claim.prize.name; }
+        try { const claim = await nameRoll(p, { ...rollOpts, until: liveDraw() }); w = claim.name; prizeName = claim.prize.name; }
         catch (e) {
           console.error(e); state = 'idle'; busy(false); ui();
           hint.textContent = e.message || 'The draw was not saved.';
           return;
         }
-      } else w = pick(p);
+      } else {
+        w = pick(p);
+        await nameRoll(p, rollOpts);
+      }
       hint.textContent = drawingHint;
       try { await draw(w); } catch (e) { console.error(e); }
       record(w, prizeName); result.textContent = 'The winner is ' + w;
@@ -355,6 +406,9 @@
       console.error(e); live.authed = true; live.error = 'Could not reach Firebase. Check the internet connection.'; notifyLive();
     }
   })();
+  // A hanging download (slow or blocked network) must not keep demo draws disabled: after 8 s, treat Firebase as unreachable.
+  // The auth listener above still takes over if Firebase loads later.
+  setTimeout(() => { if (!live.authed) { live.authed = true; live.error = 'Could not reach Firebase. Demo draws still work.'; notifyLive(); } }, 8000);
   async function liveSignIn(email, password) {
     await liveInit;
     if (!live.fb) throw Object.assign(new Error('Not connected.'), { code: 'auth/network-request-failed' });
@@ -444,7 +498,7 @@
     });
   }
 
-  window.LD = { KEY, SAMPLE, DESIGNS, design, reduced, load, save, pool, randInt, pick, shuffle, ease, tween, sleep, audio, snd, confetti, fitText, chrome, busy, record, stage, demoOnly,
+  window.LD = { KEY, SAMPLE, DESIGNS, design, reduced, load, save, pool, randInt, pick, shuffle, ease, tween, sleep, audio, snd, confetti, fitText, chrome, busy, record, stage, nameRoll, demoOnly,
     live: { event: EVENT, onChange: onLive, state: liveState, message: liveMessage, user: () => live.user, prizes: livePrizes, nextPrize: liveNextPrize, winners: () => live.winners,
       signIn: liveSignIn, signOut: liveSignOut, addNames: liveAddNames, addPrize: liveAddPrize } };
 })();

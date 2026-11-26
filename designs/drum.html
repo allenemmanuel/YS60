@@ -516,13 +516,17 @@ let state = 'idle', t = 0, winner = null, winnerName = '', camFrom = null, camTo
 const IDLE_W = 0.45, MAX_W = 6.2;
 const ease = x => x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3) / 2;
 
-spinBtn.addEventListener('click', () => {
+let rolling = false; // names roll before the drum spins up
+spinBtn.addEventListener('click', async () => {
   const p = drawPool();
-  if (state !== 'idle' || p.length === 0) return;
+  if (rolling || state !== 'idle' || p.length === 0) return;
+  rolling = true; spinBtn.disabled = true; namesBtn.disabled = true;
   winnerName = LD.pick(p);
+  await LD.nameRoll(p, { minMs: reduced ? 1200 : 2800 });
+  rolling = false;
   drawCard(winnerName);
   openDrawer(false);
-  state = 'spinup'; t = 0; spinBtn.disabled = true; namesBtn.disabled = true; controls.autoRotate = false;
+  state = 'spinup'; t = 0; controls.autoRotate = false;
   for (const b of balls) if (b.active) b.v.y += 1.5 + Math.random() * 2; // jolt
 });
 resetBtn.addEventListener('click', () => {

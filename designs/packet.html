@@ -272,6 +272,7 @@ drawBtn.addEventListener('click', async () => {
   initAudio(); if (ac && ac.state === 'suspended') ac.resume();
   busy = true; drawBtn.disabled = true; namesBtn.disabled = true; openDrawer(false);
   const winner = LD.pick(pool);
+  await LD.nameRoll(pool, { minMs: reduced ? 1200 : 2800 });
   hintEl.textContent = 'Shuffling…';
   await shuffleRounds(reduced ? 1 : 7);
 

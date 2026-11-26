@@ -287,6 +287,7 @@ drawBtn.addEventListener('click', async () => {
   busy = true; drawBtn.disabled = true; namesBtn.disabled = true; openDrawer(false);
   tiles.forEach(t => t.el.classList.remove('win'));
   const winner = LD.pick(p);
+  await LD.nameRoll(p, { accent: '#ffb547', minMs: reduced ? 1200 : 2800 });
   const need = wrapName(toBoard(winner), cols).length;
   if (need > rows) { build(need); tiles.forEach(t => t.set(' ')); }
   setStatus('Drawing', 'blink'); hintEl.textContent = 'Drawing…';

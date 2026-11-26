@@ -58,6 +58,15 @@ Testing tip: the in-app browser pane throttles or pauses requestAnimationFrame w
 timeline and seeking it in fixed steps (see `#debug`), and restore `ld-studio-v1` in localStorage after test draws.
 Gotcha: Three's `curve.getPoint()` is not arc-length parameterised — use `getPointAt()` for camera flights or speed jumps at segment joins.
 
+## Name roll (added 2026-11-26)
+- **What:** before every design's own animation, names flicker past from the draw pool for about 2.8 s, slow down at the end and fade out. The audience sees names before the winner appears. This is the "roll".
+- **Where:** `nameRoll(names, { accent, minMs, until })` in `core.js` (exported as `LD.nameRoll`). `LD.stage()` calls it for all 18 stage designs. Board, drum, packet and reel call it themselves, right before their animation.
+- **Timing:** 2.8 s normally, 1.2 s with reduced motion (slower name changes). Changes are quick, then ease out to about 4× slower in the last 40 %.
+- **Live mode:** the roll runs while `liveDraw()` saves the claim. It lasts at least `minMs` and until the save settles. The winner shows only after the server accepts it. A failed save removes the roll straight away and shows the error.
+- **Demo mode:** the winner is picked before the roll, so the roll is a visual only. It does not decide the result.
+- **Design rule:** a new design must not show the winner before `draw(winner)` is called. The roll covers the gap; the design animates to the winner it is given.
+- **Firebase fallback:** if the Firebase import hangs for 8 s, demo draws are re-enabled ("Could not reach Firebase. Demo draws still work.").
+
 ## Live draws (staff sign-in, added 2026-11-22)
 - **Demo mode** (signed out, the default): draws use the local names list in localStorage, as before. Nothing is saved to the event.
 - **Live mode** (a staff account signs in on the hub): `core.js` reads `events/{EVENT}` in the YS60 database (`guests`, `prizes`, `winners`, `winnerByGuest`, `settings`). Every draw is one atomic multi-path update: winner, `winnerByGuest`, `public/winners`, and `log`. The rules reject a second win for the same prize or guest, and `liveDraw()` retries. It is the same logic as `app/src/lib/draw.ts`.
