@@ -308,7 +308,8 @@ firebase deploy --only hosting --project ys60-d283a
 - **Live-only studio, shared password (MAKYS-style), decided 2026-11-26.** Staff sign-in is now one shared password (`STUDIO_PASSWORD` in `studio/core.js`), remembered per tab. The database rules were opened for `events/` reads and writes (validation kept; `staff/` unchanged). This was an explicit decision: anyone who views the site can read and edit the event data (guest names, winners, prizes). The event app (`app/`) still expects Firebase sign-in and no longer works for staff.
 - **Deployed** database rules and studio hosting to `ys60-d283a`.
 - **22 sample names** (`LD.SAMPLE`) added to the **live** event `ys60` (no test event; decision). Remove them in the event app before the day.
-- **Demo mode removed from the studio** (core, hub and all 22 designs). Names, winners, prizes and stats come only from the event. Load-tested locally: all 22 designs and the hub load with no console errors, signed in and out. **Not deployed and not committed yet.**
+- **Demo mode removed from the studio** (core, hub and all 22 designs). Names, winners, prizes and stats come only from the event. Load-tested locally: all 22 designs and the hub load with no console errors, signed in and out. Deployed and committed as `5f0dee1`, pushed.
+- `materials/Senarai Hadiah Lucky Draw MAKYS.xlsx` (the MAKYS prize list, sample data for the revamp) committed to the repo as a reference file.
 - Still to do: prize paste/save screen; batch draw with trophy-shelf layout (one write per prize); import the 200 prizes from `materials/Senarai Hadiah Lucky Draw MAKYS.xlsx`. Prizes must be added before live draws work.
 
 ---
