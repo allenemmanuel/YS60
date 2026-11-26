@@ -9,8 +9,8 @@ const PAGES = [['index.html', 'Hub'], ['names.html', 'Names'], ['prizes.html', '
 function nav(active) {
   const el = $('nav');
   if (!el) return;
-  el.innerHTML = PAGES.map(([href, label]) => `<a href="${href}"${href === active ? ' aria-current="page"' : ''}>${label}</a>`).join('')
-    + '<span class="spacer"></span><span class="status" id="status"></span>';
+  el.innerHTML = `<div class="nav-links">${PAGES.map(([href, label]) => `<a href="${href}"${href === active ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</div>`
+    + '<span class="status" id="status"></span>';
 }
 
 // Sign-in box. One shared password for all staff pages (MAKYS method). Signing in once works on every page in this tab.
@@ -27,7 +27,7 @@ function gate(el) {
     shown = s;
     if (s === 'on') {
       el.className = 'gate on';
-      el.innerHTML = `Signed in · event <code>${esc(LD.live.event)}</code> <button id="signout" type="button">Sign out</button>`;
+      el.innerHTML = `<span>Signed in to <code>${esc(LD.live.event)}</code></span><button id="signout" class="signout" type="button">Sign out</button>`;
       $('signout').onclick = () => LD.live.signOut();
     } else if (s === 'off' || s === 'error') {
       el.className = 'gate';
